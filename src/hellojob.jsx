@@ -231,6 +231,13 @@ const FILTER_ICON_MAP = {
 /* ═══════════════════════════════════════════════════════════ */
 function parseJobs(text) {
   try {
+    // Handle markdown code block wrapping (```json [...] ```)
+    const block = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+    if (block) {
+      const p = JSON.parse(block[1]);
+      if (Array.isArray(p)) return p.filter(j => j.title && j.company);
+    }
+    // Bare JSON array fallback
     const m = text.match(/\[[\s\S]*\]/);
     if (m) {
       const p = JSON.parse(m[0]);
@@ -258,7 +265,7 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
 
     const body = {
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5",
       max_tokens: useWebSearch ? 4000 : 2000,
       messages: [{ role: "user", content: prompt }],
     };
@@ -1258,7 +1265,7 @@ function ActiveFilters({ filters, onClear, onClearAll, th }) {
 /* ═══════════════════════════════════════════════════════════ */
 export default function UnifiedJobAggregator() {
   /* mode */
-  const [mode, setMode] = useState("general");
+  const [mode, setMode] = useState("visual");
 
   /* filters */
   const [keyword, setKeyword] = useState("");

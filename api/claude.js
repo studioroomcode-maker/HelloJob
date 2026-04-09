@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
 
   const body = {
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-5",
     max_tokens: useWebSearch ? 4000 : 2000,
     messages: [{ role: "user", content: prompt }],
   };
