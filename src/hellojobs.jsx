@@ -1742,15 +1742,16 @@ export default function UnifiedJobAggregator() {
 
   const inputRef = useRef(null);
 
-  const isV        = mode === "visual";
-  const th         = getTheme(mode, darkMode);
-
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setRoleV("전체 직무"); }, [visualCat]);
   useEffect(() => {
-    document.body.style.background = th.bg;
+    const bg = getTheme(mode, darkMode).bg;
+    document.body.style.background = bg;
     document.body.style.transition = "background 0.3s";
-  }, [th.bg]);
+  }, [mode, darkMode]);
+
+  const isV        = mode === "visual";
+  const th         = getTheme(mode, darkMode);
 
   // 자동 로드 제거 (비용 절감 — 검색 버튼으로만 호출)
   const sites      = isV ? SITES_VISUAL : SITES_GENERAL;
