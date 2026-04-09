@@ -243,12 +243,12 @@ function parseJobs(text) {
 async function callClaudeAPI(prompt, useWebSearch = false) {
   let key = "";
   try { key = JSON.parse(localStorage.getItem("hj_profile") || "{}").apiKey || ""; } catch {}
-  const headers = { "Content-Type": "application/json" };
-  if (key) {
-    headers["x-api-key"] = key;
-    headers["anthropic-version"] = "2023-06-01";
-    headers["anthropic-dangerous-direct-browser-access"] = "true";
-  }
+  const headers = {
+    "Content-Type": "application/json",
+    "anthropic-version": "2023-06-01",
+    "anthropic-dangerous-direct-browser-access": "true",
+  };
+  if (key) headers["x-api-key"] = key;
   if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
   const body = {
     model: "claude-sonnet-4-20250514",
