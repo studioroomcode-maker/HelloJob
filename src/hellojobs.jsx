@@ -248,21 +248,25 @@ const FILTER_ICON_MAP = {
 /*  HELPERS                                                    */
 /* ═══════════════════════════════════════════════════════════ */
 function parseJobs(text) {
-  try {
-    // Handle markdown code block wrapping (```json [...] ```)
-    const block = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-    if (block) {
+  if (!text) return null;
+  // 1. Code block: ```json [...] ``` or ``` [...] ```
+  const block = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+  if (block) {
+    try {
       const p = JSON.parse(block[1]);
       if (Array.isArray(p)) return p.filter(j => j.title && j.company);
-    }
-    // Bare JSON array fallback
-    const m = text.match(/\[[\s\S]*\]/);
-    if (m) {
-      const p = JSON.parse(m[0]);
+    } catch {}
+  }
+  // 2. Outermost [...] — find first [ and last ] to handle surrounding text
+  const first = text.indexOf("[");
+  const last  = text.lastIndexOf("]");
+  if (first !== -1 && last > first) {
+    try {
+      const p = JSON.parse(text.slice(first, last + 1));
       if (Array.isArray(p)) return p.filter(j => j.title && j.company);
-    }
-  } catch {}
-  return [];
+    } catch {}
+  }
+  return null; // null = parse failed (distinct from [] = parsed but empty)
 }
 
 function getAIProvider() {
@@ -1820,14 +1824,16 @@ export default function UnifiedJobAggregator() {
 ${conditions}
 정렬: ${sortMap[effectiveSortBy]}
 
-JSON 배열만 출력하세요. 최대 15개.
+[출력 형식 — 반드시 준수]
+아래 JSON 배열 형식으로만 응답하세요. 설명문, 인트로, 마크다운 코드블록 전혀 없이. 반드시 [ 로 시작하고 ] 로 끝나는 순수 JSON만 출력하세요. 결과가 없으면 [] 를 출력하세요. 최대 15개.
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","education":"",${extraFields}"url":"","deadline":""}]`;
 
     try {
       const text = await callClaudeAPI(prompt, true);
       const parsed = parseJobs(text);
-      if (parsed.length > 0) setJobs(parsed);
-      else setError("검색 결과를 파싱할 수 없습니다. 다른 키워드로 시도해보세요.");
+      if (parsed === null) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요.");
+      else if (parsed.length === 0) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요.");
+      else setJobs(parsed);
     } catch (err) {
       setError(`검색 오류: ${err.message}`);
     } finally {
