@@ -2572,8 +2572,9 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
       </main>
 
       {/* ── FOOTER ── */}
-      <footer style={{
-        borderTop: `1px solid ${th.border}`,
+      <footer style={{ borderTop: `1px solid ${th.border}` }}>
+      <div style={{
+        maxWidth: "980px", margin: "0 auto",
         padding: "20px 28px",
         color: th.textM, fontSize: "11px", fontFamily: FF,
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -2588,6 +2589,7 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
             style={{ height: "16px", opacity: 0.75, display: "block" }}
           />
         </div>
+      </div>
       </footer>
 
       {/* ── MODALS ── */}
