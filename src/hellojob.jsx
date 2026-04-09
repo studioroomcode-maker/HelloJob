@@ -247,15 +247,25 @@ function parseJobs(text) {
   return [];
 }
 
+function getAIProvider() {
+  try {
+    const p = JSON.parse(localStorage.getItem("hj_profile") || "{}");
+    return {
+      provider: p.aiProvider || "claude",
+      claudeKey: p.apiKey || "",
+      geminiKey: p.geminiApiKey || "",
+    };
+  } catch {
+    return { provider: "claude", claudeKey: "", geminiKey: "" };
+  }
+}
+
 async function callClaudeAPI(prompt, useWebSearch = false) {
-  let userApiKey = "";
-  try { userApiKey = JSON.parse(localStorage.getItem("hj_profile") || "{}").apiKey || ""; } catch {}
+  const { claudeKey } = getAIProvider();
 
-  /* ── 로컬 개발 (npm run dev): Anthropic 직접 호출 ── */
   if (import.meta.env.DEV) {
-    const key = userApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+    const key = claudeKey || import.meta.env.VITE_ANTHROPIC_API_KEY || "";
     if (!key) throw new Error(".env 파일에 VITE_ANTHROPIC_API_KEY를 추가해주세요.");
-
     const headers = {
       "Content-Type": "application/json",
       "x-api-key": key,
@@ -263,14 +273,12 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
       "anthropic-dangerous-direct-browser-access": "true",
     };
     if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
-
     const body = {
       model: "claude-sonnet-4-5",
       max_tokens: useWebSearch ? 4000 : 2000,
       messages: [{ role: "user", content: prompt }],
     };
     if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
-
     const devRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers, body: JSON.stringify(body),
     });
@@ -284,13 +292,11 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     return devText;
   }
 
-  /* ── 프로덕션 (Vercel): 서버 프록시 경유 ── */
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, useWebSearch, userApiKey }),
+    body: JSON.stringify({ prompt, useWebSearch, userApiKey: claudeKey }),
   });
-
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.error || `API 오류: ${res.status}`);
@@ -299,6 +305,51 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
   let text = "";
   for (const b of data.content) if (b.type === "text") text += b.text;
   return text;
+}
+
+async function callGeminiAPI(prompt) {
+  const { geminiKey } = getAIProvider();
+
+  if (import.meta.env.DEV) {
+    const key = geminiKey || import.meta.env.VITE_GEMINI_API_KEY || "";
+    if (!key) throw new Error(".env 파일에 VITE_GEMINI_API_KEY를 추가해주세요.");
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 2000 },
+        }),
+      }
+    );
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `Gemini API 오류: ${res.status}`);
+    }
+    const d = await res.json();
+    return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  }
+
+  const res = await fetch("/api/gemini", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, userApiKey: geminiKey }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error || `API 오류: ${res.status}`);
+  }
+  const d = await res.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
+/* 일반 AI 호출 (Claude/Gemini 자동 라우팅, 웹 검색 없음) */
+async function callAI(prompt) {
+  const { provider } = getAIProvider();
+  if (provider === "gemini") return callGeminiAPI(prompt);
+  return callClaudeAPI(prompt, false);
 }
 
 function computeMatchScore(job, profile) {
@@ -462,7 +513,10 @@ function SelectField({ label, Icon, value, onChange, options, valueKey, th }) {
 function ProfileModal({ profile, onSave, onClose, th }) {
   const [form, setForm] = useState({
     name: "", expYears: "", skills: "", desiredSalary: "",
-    desiredRegion: "전체", jobTypes: "전체", intro: "", apiKey: "",
+    desiredRegion: "전체", jobTypes: "전체",
+    strength: "", specialty: "", hobby: "", experience: "", goal: "",
+    intro: "",
+    apiKey: "", geminiApiKey: "", aiProvider: "claude",
     ...profile,
   });
   const [saved, setSaved] = useState(false);
@@ -481,10 +535,15 @@ function ProfileModal({ profile, onSave, onClose, th }) {
     fontFamily: FF, boxSizing: "border-box",
     transition: "border-color 0.2s cubic-bezier(0.16,1,0.3,1)",
   };
-  const label = {
+  const lbl = {
     display: "block", fontSize: "10px", fontWeight: 700,
     color: th.textM, textTransform: "uppercase",
     letterSpacing: "0.1em", marginBottom: "7px", fontFamily: FF,
+  };
+  const sectionTitle = {
+    fontSize: "10px", fontWeight: 700, color: th.textS,
+    textTransform: "uppercase", letterSpacing: "0.1em",
+    fontFamily: FF, display: "flex", alignItems: "center", gap: "6px",
   };
   const focus = e => { e.currentTarget.style.borderColor = th.accent; };
   const blur  = e => { e.currentTarget.style.borderColor = th.border; };
@@ -507,8 +566,8 @@ function ProfileModal({ profile, onSave, onClose, th }) {
           background: th.surface,
           border: `1px solid ${th.borderHi}`,
           borderRadius: "20px",
-          width: "100%", maxWidth: "520px",
-          maxHeight: "90vh", overflowY: "auto",
+          width: "100%", maxWidth: "540px",
+          maxHeight: "92vh", overflowY: "auto",
           boxShadow: `0 24px 64px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset`,
         }}
       >
@@ -520,8 +579,7 @@ function ProfileModal({ profile, onSave, onClose, th }) {
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div style={{
               width: "36px", height: "36px", borderRadius: "10px", flexShrink: 0,
-              background: `${th.accent}14`,
-              border: `1px solid ${th.accent}22`,
+              background: `${th.accent}14`, border: `1px solid ${th.accent}22`,
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
               <User size={17} color={th.accent} weight="bold" />
@@ -531,14 +589,11 @@ function ProfileModal({ profile, onSave, onClose, th }) {
               <div style={{ fontSize: "11px", color: th.textM, fontFamily: FF, marginTop: "1px" }}>매칭 점수 · AI 자기소개서에 활용됩니다</div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="hj-icon-btn"
+          <button onClick={onClose} className="hj-icon-btn"
             style={{
               background: "transparent", border: "none", cursor: "pointer",
               color: th.textM, padding: "8px", borderRadius: "8px",
-              display: "flex", alignItems: "center",
-              transition: "all 0.15s",
+              display: "flex", alignItems: "center", transition: "all 0.15s",
             }}
           >
             <X size={18} weight="bold" />
@@ -546,21 +601,22 @@ function ProfileModal({ profile, onSave, onClose, th }) {
         </div>
 
         <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Row: 이름, 경력, 지역 */}
+
+          {/* ── 기본 정보 ── */}
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 130px" }}>
-              <label style={label}>이름</label>
+              <label style={lbl}>이름</label>
               <input value={form.name} onChange={e => set("name", e.target.value)}
                 placeholder="홍길동" style={field} onFocus={focus} onBlur={blur} />
             </div>
             <div style={{ flex: "0 0 90px" }}>
-              <label style={label}>경력 (년)</label>
+              <label style={lbl}>경력 (년)</label>
               <input value={form.expYears} onChange={e => set("expYears", e.target.value)}
                 placeholder="0" type="number" min="0" max="40"
                 style={field} onFocus={focus} onBlur={blur} />
             </div>
             <div style={{ flex: "1 1 120px" }}>
-              <label style={label}>희망 지역</label>
+              <label style={lbl}>희망 지역</label>
               <select value={form.desiredRegion} onChange={e => set("desiredRegion", e.target.value)}
                 style={{ ...field, appearance: "none", cursor: "pointer" }}
                 onFocus={focus} onBlur={blur}>
@@ -569,9 +625,8 @@ function ProfileModal({ profile, onSave, onClose, th }) {
             </div>
           </div>
 
-          {/* 기술 키워드 */}
           <div>
-            <label style={label}>보유 기술 키워드 (쉼표 구분)</label>
+            <label style={lbl}>보유 기술 키워드 (쉼표 구분)</label>
             <input value={form.skills} onChange={e => set("skills", e.target.value)}
               placeholder="Maya, 3D 모델링, Blender, After Effects..."
               style={field} onFocus={focus} onBlur={blur} />
@@ -580,16 +635,15 @@ function ProfileModal({ profile, onSave, onClose, th }) {
             </div>
           </div>
 
-          {/* 연봉, 고용형태 */}
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 130px" }}>
-              <label style={label}>희망 연봉 (만원)</label>
+              <label style={lbl}>희망 연봉 (만원)</label>
               <input value={form.desiredSalary} onChange={e => set("desiredSalary", e.target.value)}
                 placeholder="4000" type="number" min="0"
                 style={field} onFocus={focus} onBlur={blur} />
             </div>
             <div style={{ flex: "1 1 150px" }}>
-              <label style={label}>희망 고용형태</label>
+              <label style={lbl}>희망 고용형태</label>
               <select value={form.jobTypes} onChange={e => set("jobTypes", e.target.value)}
                 style={{ ...field, appearance: "none", cursor: "pointer" }}
                 onFocus={focus} onBlur={blur}>
@@ -598,26 +652,120 @@ function ProfileModal({ profile, onSave, onClose, th }) {
             </div>
           </div>
 
-          {/* 자기소개 */}
+          <div style={{ height: "1px", background: th.border }} />
+
+          {/* ── 자기소개서 도우미 ── */}
           <div>
-            <label style={label}>자기소개 / 강점 (자기소개서 생성에 반영)</label>
-            <textarea value={form.intro} onChange={e => set("intro", e.target.value)}
-              rows={4} placeholder="보유 경험, 강점, 지향점 등을 자유롭게 적어주세요."
-              style={{ ...field, resize: "vertical", lineHeight: 1.65, minHeight: "92px" }}
-              onFocus={focus} onBlur={blur} />
+            <div style={sectionTitle}>
+              <PencilSimple size={10} weight="bold" color={th.accent} />
+              자기소개서 도우미
+              <span style={{ fontWeight: 400, opacity: 0.65, textTransform: "none", letterSpacing: 0 }}>
+                — 간단히 써두면 AI가 자연스럽게 합쳐드려요
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
+
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 190px" }}>
+                  <label style={lbl}>핵심 강점</label>
+                  <input value={form.strength} onChange={e => set("strength", e.target.value)}
+                    placeholder="꼼꼼한 품질 관리, 팀 협업, 마감 준수..."
+                    style={field} onFocus={focus} onBlur={blur} />
+                </div>
+                <div style={{ flex: "1 1 190px" }}>
+                  <label style={lbl}>특기</label>
+                  <input value={form.specialty} onChange={e => set("specialty", e.target.value)}
+                    placeholder="3D 캐릭터 모델링, 속도 빠른 작업..."
+                    style={field} onFocus={focus} onBlur={blur} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 190px" }}>
+                  <label style={lbl}>취미 / 관심사</label>
+                  <input value={form.hobby} onChange={e => set("hobby", e.target.value)}
+                    placeholder="영화 감상, 드로잉, 게임, 여행..."
+                    style={field} onFocus={focus} onBlur={blur} />
+                </div>
+                <div style={{ flex: "1 1 190px" }}>
+                  <label style={lbl}>커리어 목표</label>
+                  <input value={form.goal} onChange={e => set("goal", e.target.value)}
+                    placeholder="3D 애니메이터로 성장하고 싶어요..."
+                    style={field} onFocus={focus} onBlur={blur} />
+                </div>
+              </div>
+
+              <div>
+                <label style={lbl}>주요 경험 / 프로젝트</label>
+                <textarea value={form.experience} onChange={e => set("experience", e.target.value)}
+                  rows={3}
+                  placeholder="○○ 애니메이션 스튜디오 인턴 6개월, 단편영화 VFX 참여, 팀 프로젝트 리드..."
+                  style={{ ...field, resize: "vertical", lineHeight: 1.65, minHeight: "76px" }}
+                  onFocus={focus} onBlur={blur} />
+              </div>
+
+            </div>
           </div>
 
           <div style={{ height: "1px", background: th.border }} />
 
-          {/* API Key */}
+          {/* ── AI 설정 ── */}
           <div>
-            <label style={label}>Claude API 키 (선택)</label>
-            <input value={form.apiKey} onChange={e => set("apiKey", e.target.value)}
-              placeholder="sk-ant-api03-..." type="password"
-              style={field} onFocus={focus} onBlur={blur} />
-            <div style={{ fontSize: "10.5px", color: th.textM, marginTop: "5px", fontFamily: FF }}>
-              AI 분석 · 자기소개서 생성에 필요 — console.anthropic.com
+            <div style={sectionTitle}>
+              <Robot size={10} weight="bold" color={th.accent} />
+              AI 설정
             </div>
+
+            {/* Provider toggle */}
+            <div style={{ display: "flex", gap: "6px", margin: "10px 0 14px" }}>
+              {[
+                { id: "claude", label: "Claude (Anthropic)" },
+                { id: "gemini", label: "Gemini (Google)" },
+              ].map(p => {
+                const active = form.aiProvider === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => set("aiProvider", p.id)}
+                    style={{
+                      padding: "6px 14px", borderRadius: "99px",
+                      border: `1px solid ${active ? th.accent + "44" : th.border}`,
+                      background: active ? `${th.accent}12` : "transparent",
+                      color: active ? th.accent : th.textM,
+                      fontSize: "11.5px", fontWeight: active ? 700 : 500,
+                      cursor: "pointer", fontFamily: FF,
+                      transition: "all 0.18s cubic-bezier(0.16,1,0.3,1)",
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {form.aiProvider === "claude" && (
+              <div>
+                <label style={lbl}>Claude API 키 (선택)</label>
+                <input value={form.apiKey} onChange={e => set("apiKey", e.target.value)}
+                  placeholder="sk-ant-api03-..." type="password"
+                  style={field} onFocus={focus} onBlur={blur} />
+                <div style={{ fontSize: "10.5px", color: th.textM, marginTop: "5px", fontFamily: FF }}>
+                  AI 분석 · 자기소개서 · 취업공고 검색에 필요 — console.anthropic.com
+                </div>
+              </div>
+            )}
+
+            {form.aiProvider === "gemini" && (
+              <div>
+                <label style={lbl}>Gemini API 키 (선택)</label>
+                <input value={form.geminiApiKey} onChange={e => set("geminiApiKey", e.target.value)}
+                  placeholder="AIza..." type="password"
+                  style={field} onFocus={focus} onBlur={blur} />
+                <div style={{ fontSize: "10.5px", color: th.textM, marginTop: "5px", fontFamily: FF }}>
+                  AI 분석 · 자기소개서에 사용 (취업공고 검색은 Claude 필요) — aistudio.google.com
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Save */}
@@ -656,12 +804,22 @@ function CoverLetterModal({ job, profile, onClose, th }) {
     const profileLines = [
       profile?.name      && `이름: ${profile.name}`,
       profile?.expYears  ? `경력: ${profile.expYears}년` : "경력: 신입",
-      profile?.skills    && `보유 기술: ${profile.skills}`,
-      profile?.desiredRegion && profile.desiredRegion !== "전체" && `희망 지역: ${profile.desiredRegion}`,
-      profile?.intro     && `자기소개: ${profile.intro}`,
+      profile?.skills    && `보유 기술/역량: ${profile.skills}`,
+      profile?.strength  && `핵심 강점: ${profile.strength}`,
+      profile?.specialty && `특기: ${profile.specialty}`,
+      profile?.hobby     && `취미·관심사: ${profile.hobby}`,
+      profile?.experience && `주요 경험: ${profile.experience}`,
+      profile?.goal      && `커리어 목표: ${profile.goal}`,
+      profile?.intro     && `기타 소개: ${profile.intro}`,
     ].filter(Boolean).join("\n");
 
-    const prompt = `다음 채용공고에 지원하는 한국어 자기소개서 초안을 작성해주세요.
+    const prompt = `아래 채용공고와 지원자 정보를 바탕으로 한국어 자기소개서 초안을 써주세요.
+
+[핵심 지시사항]
+- 실제 사람이 쓴 것처럼 자연스럽고 솔직하게 쓸 것
+- "저는 ~에 매우 열정적입니다", "도전을 두려워하지 않는", "성장하는" 같은 AI 투의 상투적 표현 절대 금지
+- 지원자의 구체적인 특성과 경험이 자연스럽게 녹아들도록 작성
+- 각 항목 200~250자, 읽기 편한 구어체와 문어체 혼용 가능
 
 [채용공고]
 직무: ${job.title}
@@ -671,17 +829,15 @@ function CoverLetterModal({ job, profile, onClose, th }) {
 경력: ${job.experience || "미기재"}
 고용형태: ${job.type || "미기재"}${job.tools ? `\n필요 기술: ${job.tools}` : ""}${job.role ? `\n세부 직무: ${job.role}` : ""}${job.industry ? `\n업종: ${job.industry}` : ""}
 
-[지원자 프로필]
+[지원자 정보]
 ${profileLines || "프로필 미입력"}
-
-3가지 항목을 각 200~250자로 작성해주세요.
 
 ## 1. 지원 동기
 ## 2. 경력 및 역량
 ## 3. 강점 및 포부`;
 
     try {
-      const result = await callClaudeAPI(prompt);
+      const result = await callAI(prompt);
       setText(result);
     } catch (err) {
       setError("생성 오류: " + err.message);
@@ -922,7 +1078,7 @@ function JobCard({ job, index, mode, th, profile, onCoverLetter }) {
 **지원 전 체크포인트**
 • ...`;
     try {
-      setAnalysisText(await callClaudeAPI(prompt));
+      setAnalysisText(await callAI(prompt));
     } catch (err) {
       setAnalysisError("분석 오류: " + err.message);
     } finally {
@@ -1456,7 +1612,7 @@ JSON 배열만 출력하세요. 최대 15개.
 입력: "${nlText}"
 가능한 값 — region: 전체|서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주|해외/리모트 / experience: 전체|신입|1~3년|3~5년|5~10년|10년 이상|경력무관 / jobType: 전체|정규직|계약직|인턴|아르바이트|프리랜서|파견직 / toolV: 전체|Maya|Blender|3ds Max|Cinema 4D|Houdini|ZBrush|After Effects|Premiere Pro|DaVinci Resolve|Nuke|Photoshop|Clip Studio|Toon Boom|Unreal Engine|Unity|Substance|Final Cut Pro / visualCat: all|animation|film|broadcast|game|motiongfx|webtoon|video
 JSON만 응답: {"keyword":"...","region":"..."}`;
-    const text = await callClaudeAPI(prompt);
+    const text = await callAI(prompt);
     try {
       const m = text.match(/\{[\s\S]*\}/);
       if (m) return JSON.parse(m[0]);
