@@ -296,7 +296,7 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     };
     if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
     const body = {
-      model: "claude-sonnet-4-5",
+      model: "claude-sonnet-4-6",
       max_tokens: useWebSearch ? 4000 : 2000,
       messages: [{ role: "user", content: prompt }],
     };
@@ -309,8 +309,10 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
       throw new Error(e.error?.message || `API 오류: ${devRes.status}`);
     }
     const devData = await devRes.json();
+    if (!devData.content) throw new Error(devData.error?.message || "응답 오류");
     let devText = "";
     for (const b of devData.content) if (b.type === "text") devText += b.text;
+    if (!devText) throw new Error("AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.");
     return devText;
   }
 
@@ -324,8 +326,10 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     throw new Error(e.error || `API 오류: ${res.status}`);
   }
   const data = await res.json();
+  if (!data.content) throw new Error(data.error?.message || data.error || "응답 오류");
   let text = "";
   for (const b of data.content) if (b.type === "text") text += b.text;
+  if (!text) throw new Error("AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.");
   return text;
 }
 
@@ -1672,10 +1676,10 @@ export default function UnifiedJobAggregator() {
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setRoleV("전체 직무"); }, [visualCat]);
 
-  // 영상 전문 모드 진입 시 자동으로 전체 구인 로드
+  // 영상 전문 모드 진입 시 자동으로 전체 구인 로드 (실패해도 에러 미표시)
   useEffect(() => {
     if (mode === "visual") {
-      searchJobs({ keyword: "애니메이션 영화 방송 게임 모션그래픽 웹툰 영상제작 VFX CG 채용 구인" });
+      searchJobs({ keyword: "애니메이션 영화 방송 게임 모션그래픽 웹툰 영상제작 VFX CG 채용 구인", silent: true });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
@@ -1759,6 +1763,7 @@ export default function UnifiedJobAggregator() {
 
   const searchJobs = async (overrides = {}) => {
     const kw = overrides.keyword ?? keyword;
+    const isSilent = overrides.silent === true;
     if (!kw.trim()) return;
 
     const effectiveRegion     = overrides.region     ?? region;
@@ -1831,11 +1836,11 @@ ${conditions}
     try {
       const text = await callClaudeAPI(prompt, true);
       const parsed = parseJobs(text);
-      if (parsed === null) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요.");
-      else if (parsed.length === 0) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요.");
+      if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
+      else if (parsed.length === 0) { if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요."); }
       else setJobs(parsed);
     } catch (err) {
-      setError(`검색 오류: ${err.message}`);
+      if (!isSilent) setError(`검색 오류: ${err.message}`);
     } finally {
       setLoading(false);
     }
