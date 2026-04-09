@@ -6,6 +6,7 @@ import {
   SlidersHorizontal, X, GameController, VideoCamera,
   Television, SquaresFour, FilmStrip, Swatches, BookOpen,
   CaretDown, WarningCircle, SmileySad, Buildings,
+  User, Robot, PencilSimple, Copy, Lightning, ClipboardText,
 } from "@phosphor-icons/react";
 
 /* ═══════════════════════════════════════════════════════════ */
@@ -210,6 +211,90 @@ function parseJobs(text) {
 }
 
 /* ═══════════════════════════════════════════════════════════ */
+/*  AI HELPERS (module-level)                                 */
+/* ═══════════════════════════════════════════════════════════ */
+async function callClaudeAPI(prompt, useWebSearch = false) {
+  let key = "";
+  try { key = JSON.parse(localStorage.getItem("hj_profile") || "{}").apiKey || ""; } catch {}
+
+  const headers = { "Content-Type": "application/json" };
+  if (key) {
+    headers["x-api-key"] = key;
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
+  }
+  if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
+
+  const body = {
+    model: "claude-sonnet-4-20250514",
+    max_tokens: useWebSearch ? 4000 : 2000,
+    messages: [{ role: "user", content: prompt }],
+  };
+  if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error?.message || `API 오류: ${res.status}`);
+  }
+
+  const data = await res.json();
+  let text = "";
+  for (const b of data.content) if (b.type === "text") text += b.text;
+  return text;
+}
+
+function computeMatchScore(job, profile) {
+  if (!profile) return null;
+  const hasData = profile.skills || profile.expYears || profile.desiredRegion;
+  if (!hasData) return null;
+
+  let points = 0, max = 0;
+
+  if (profile.skills) {
+    const skills = profile.skills.toLowerCase().split(/[\s,]+/).filter(s => s.length > 1);
+    if (skills.length > 0) {
+      const jobText = `${job.title} ${job.tools || ""} ${job.role || ""} ${job.industry || ""}`.toLowerCase();
+      const matched = skills.filter(s => jobText.includes(s)).length;
+      points += Math.round((matched / skills.length) * 40);
+      max += 40;
+    }
+  }
+
+  if (profile.desiredRegion && profile.desiredRegion !== "전체") {
+    max += 20;
+    if (job.location?.includes(profile.desiredRegion)) points += 20;
+    else if (job.location?.includes("리모트") || job.location?.includes("재택")) points += 10;
+  }
+
+  if (profile.expYears) {
+    const yrs = parseInt(profile.expYears) || 0;
+    const exp = job.experience || "";
+    max += 20;
+    if (!exp || exp.includes("경력무관") || exp.includes("무관")) points += 20;
+    else if (exp.includes("신입") && yrs === 0) points += 20;
+    else if (exp.includes("신입") && yrs <= 2) points += 12;
+    else {
+      const nums = (exp.match(/\d+/g) || []).map(Number);
+      if (nums.length > 0) {
+        const minY = Math.min(...nums);
+        const maxY = nums.length >= 2 ? Math.max(...nums) : 99;
+        if (yrs >= minY && yrs <= maxY) points += 20;
+        else if (yrs >= minY - 1) points += 10;
+      }
+    }
+  }
+
+  if (max === 0) return null;
+  return Math.min(100, Math.round((points / max) * 100));
+}
+
+/* ═══════════════════════════════════════════════════════════ */
 /*  DESIGN SYSTEM                                             */
 /* ═══════════════════════════════════════════════════════════ */
 const CATEGORY_ICONS = {
@@ -317,10 +402,550 @@ function Tag({ Icon, text, color, th }) {
   );
 }
 
-function JobCard({ job, index, mode, th }) {
+/* ═══════════════════════════════════════════════════════════ */
+/*  PROFILE MODAL                                             */
+/* ═══════════════════════════════════════════════════════════ */
+function ProfileModal({ profile, onSave, onClose, th }) {
+  const [form, setForm] = useState({
+    name: "", expYears: "", skills: "", desiredSalary: "",
+    desiredRegion: "전체", jobTypes: "전체", intro: "", apiKey: "",
+    ...profile,
+  });
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    onSave(form);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1800);
+  };
+
+  const fieldStyle = {
+    width: "100%", padding: "10px 14px", borderRadius: "10px",
+    border: `1px solid ${th.border}`, background: th.inputBg,
+    color: th.textP, fontSize: "13px", outline: "none",
+    fontFamily: FF, boxSizing: "border-box",
+    transition: "border-color 0.2s",
+  };
+  const labelStyle = {
+    fontSize: "10.5px", fontWeight: 700, color: th.textM,
+    textTransform: "uppercase", letterSpacing: "0.08em",
+    marginBottom: "6px", display: "block", fontFamily: FF,
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)",
+        zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "20px", backdropFilter: "blur(6px)",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: th.surface, borderRadius: "20px",
+          border: `1px solid ${th.border}`, width: "100%", maxWidth: "540px",
+          maxHeight: "88vh", overflowY: "auto",
+          animation: "slideUp 0.3s ease",
+          boxShadow: `0 32px 80px rgba(0,0,0,0.6)`,
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "22px 24px 0", marginBottom: "20px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{
+              width: "32px", height: "32px", borderRadius: "9px",
+              background: th.accent + "20", border: `1px solid ${th.accent}30`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <User size={16} color={th.accent} weight="bold" />
+            </div>
+            <div>
+              <div style={{ fontFamily: FF_DISPLAY, fontWeight: 800, fontSize: "16px", color: th.textP }}>내 프로필</div>
+              <div style={{ fontSize: "11px", color: th.textM, fontFamily: FF }}>매칭 점수 · 자기소개서 자동완성에 활용</div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              color: th.textM, padding: "6px", borderRadius: "8px",
+              display: "flex", alignItems: "center",
+            }}
+          >
+            <X size={18} weight="bold" />
+          </button>
+        </div>
+
+        <div style={{ padding: "0 24px 24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Row 1 */}
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 140px" }}>
+              <label style={labelStyle}>이름</label>
+              <input
+                value={form.name}
+                onChange={e => set("name", e.target.value)}
+                placeholder="홍길동"
+                style={fieldStyle}
+                onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+                onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+              />
+            </div>
+            <div style={{ flex: "1 1 100px" }}>
+              <label style={labelStyle}>경력 (년)</label>
+              <input
+                value={form.expYears}
+                onChange={e => set("expYears", e.target.value)}
+                placeholder="0 (신입)"
+                style={fieldStyle}
+                type="number" min="0" max="40"
+                onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+                onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+              />
+            </div>
+            <div style={{ flex: "1 1 120px" }}>
+              <label style={labelStyle}>희망 지역</label>
+              <select
+                value={form.desiredRegion}
+                onChange={e => set("desiredRegion", e.target.value)}
+                style={{ ...fieldStyle, appearance: "none", cursor: "pointer" }}
+                onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+                onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+              >
+                {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Skills */}
+          <div>
+            <label style={labelStyle}>보유 기술 / 역량 키워드 (쉼표로 구분)</label>
+            <input
+              value={form.skills}
+              onChange={e => set("skills", e.target.value)}
+              placeholder="Maya, 3D 모델링, Blender, 게임 그래픽, After Effects..."
+              style={fieldStyle}
+              onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+              onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+            />
+            <div style={{ fontSize: "10.5px", color: th.textM, marginTop: "5px", fontFamily: FF }}>
+              공고 매칭 점수 계산에 사용됩니다
+            </div>
+          </div>
+
+          {/* Row 2 */}
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 140px" }}>
+              <label style={labelStyle}>희망 연봉 (만원)</label>
+              <input
+                value={form.desiredSalary}
+                onChange={e => set("desiredSalary", e.target.value)}
+                placeholder="4000"
+                style={fieldStyle}
+                type="number" min="0"
+                onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+                onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+              />
+            </div>
+            <div style={{ flex: "1 1 160px" }}>
+              <label style={labelStyle}>희망 고용형태</label>
+              <select
+                value={form.jobTypes}
+                onChange={e => set("jobTypes", e.target.value)}
+                style={{ ...fieldStyle, appearance: "none", cursor: "pointer" }}
+                onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+                onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+              >
+                {JOB_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Intro */}
+          <div>
+            <label style={labelStyle}>자기소개 / 강점 (자기소개서 작성에 활용)</label>
+            <textarea
+              value={form.intro}
+              onChange={e => set("intro", e.target.value)}
+              placeholder="간략한 자기소개, 보유 경험, 강점 등을 자유롭게 작성하세요. 자기소개서 생성 시 이 내용을 반영합니다."
+              rows={4}
+              style={{
+                ...fieldStyle, resize: "vertical", lineHeight: 1.6,
+                minHeight: "90px",
+              }}
+              onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+              onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+            />
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: "1px", background: th.border }} />
+
+          {/* API Key */}
+          <div>
+            <label style={labelStyle}>Claude API 키 (선택사항)</label>
+            <input
+              value={form.apiKey}
+              onChange={e => set("apiKey", e.target.value)}
+              placeholder="sk-ant-api03-..."
+              type="password"
+              style={fieldStyle}
+              onFocus={e => { e.currentTarget.style.borderColor = th.accent; }}
+              onBlur={e => { e.currentTarget.style.borderColor = th.border; }}
+            />
+            <div style={{ fontSize: "10.5px", color: th.textM, marginTop: "5px", fontFamily: FF }}>
+              AI 분석 · 자기소개서 생성에 필요합니다. console.anthropic.com에서 발급
+            </div>
+          </div>
+
+          {/* Save button */}
+          <button
+            onClick={handleSave}
+            style={{
+              width: "100%", padding: "13px",
+              background: saved ? "#10B981" : `linear-gradient(135deg, ${th.accent}, ${th.accentAlt})`,
+              border: "none", borderRadius: "12px",
+              color: "#fff", fontSize: "14px", fontWeight: 700,
+              cursor: "pointer", fontFamily: FF,
+              transition: "all 0.3s",
+              boxShadow: `0 4px 16px ${th.accent}30`,
+            }}
+          >
+            {saved ? "저장됨!" : "프로필 저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  COVER LETTER MODAL                                        */
+/* ═══════════════════════════════════════════════════════════ */
+function CoverLetterModal({ job, profile, onClose, th }) {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const generate = async () => {
+    setLoading(true); setError(""); setText("");
+    const profileLines = [
+      profile?.name && `이름: ${profile.name}`,
+      profile?.expYears ? `경력: ${profile.expYears}년` : "경력: 신입/미입력",
+      profile?.skills && `보유 기술: ${profile.skills}`,
+      profile?.desiredRegion && profile.desiredRegion !== "전체" && `희망 지역: ${profile.desiredRegion}`,
+      profile?.intro && `자기소개/강점: ${profile.intro}`,
+    ].filter(Boolean).join("\n");
+
+    const prompt = `다음 채용공고에 지원하는 한국어 자기소개서 초안을 작성해주세요.
+
+[채용공고]
+직무: ${job.title}
+회사: ${job.company}
+위치: ${job.location || "미기재"}
+급여: ${job.salary || "미기재"}
+경력 요건: ${job.experience || "미기재"}
+고용형태: ${job.type || "미기재"}${job.tools ? `\n필요 기술: ${job.tools}` : ""}${job.role ? `\n세부 직무: ${job.role}` : ""}${job.industry ? `\n업종: ${job.industry}` : ""}
+
+[지원자 프로필]
+${profileLines || "프로필 미입력 - 일반적인 지원자로 작성해주세요"}
+
+다음 3가지 항목으로 자기소개서를 작성해주세요. 각 항목은 200~250자 내외로 자연스럽고 진솔하게 작성하세요.
+
+## 1. 지원 동기
+(이 회사/직무에 지원하는 이유, 관심을 갖게 된 계기)
+
+## 2. 경력 및 역량
+(보유 기술과 경험, 이 직무에 어떻게 기여할 수 있는지)
+
+## 3. 강점 및 포부
+(본인의 강점, 입사 후 목표와 성장 방향)`;
+
+    try {
+      const result = await callClaudeAPI(prompt);
+      setText(result);
+    } catch (err) {
+      setError("생성 오류: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { generate(); }, []);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const renderText = (raw) => {
+    return raw.split("\n").map((line, i) => {
+      if (line.startsWith("## ")) {
+        return (
+          <div key={i} style={{
+            fontWeight: 800, fontSize: "13px", color: th.accent,
+            margin: i === 0 ? "0 0 8px" : "20px 0 8px",
+            fontFamily: FF, display: "flex", alignItems: "center", gap: "6px",
+          }}>
+            <ClipboardText size={13} weight="bold" />
+            {line.replace("## ", "")}
+          </div>
+        );
+      }
+      if (line.startsWith("**") && line.endsWith("**")) {
+        return <div key={i} style={{ fontWeight: 700, color: th.textP, fontFamily: FF, fontSize: "13px", margin: "12px 0 6px" }}>{line.replace(/\*\*/g, "")}</div>;
+      }
+      if (line.trim() === "") return <div key={i} style={{ height: "6px" }} />;
+      return <div key={i} style={{ color: th.textP, fontSize: "13.5px", lineHeight: 1.75, fontFamily: FF }}>{line}</div>;
+    });
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.80)",
+        zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "20px", backdropFilter: "blur(8px)",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: th.surface, borderRadius: "20px",
+          border: `1px solid ${th.border}`, width: "100%", maxWidth: "620px",
+          maxHeight: "90vh", display: "flex", flexDirection: "column",
+          animation: "slideUp 0.3s ease",
+          boxShadow: `0 32px 80px rgba(0,0,0,0.7)`,
+        }}
+      >
+        {/* Modal Header */}
+        <div style={{
+          padding: "20px 24px", borderBottom: `1px solid ${th.border}`,
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{
+              width: "36px", height: "36px", borderRadius: "10px",
+              background: th.accent + "18", border: `1px solid ${th.accent}28`,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}>
+              <PencilSimple size={17} color={th.accent} weight="bold" />
+            </div>
+            <div>
+              <div style={{ fontFamily: FF_DISPLAY, fontWeight: 800, fontSize: "15px", color: th.textP }}>
+                AI 자기소개서 초안
+              </div>
+              <div style={{ fontSize: "11.5px", color: th.textM, fontFamily: FF, marginTop: "2px" }}>
+                {job.title} · {job.company}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {text && !loading && (
+              <>
+                <button
+                  onClick={handleCopy}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "5px",
+                    padding: "7px 12px", borderRadius: "9px",
+                    border: `1px solid ${th.border}`,
+                    background: copied ? th.accent + "15" : "transparent",
+                    color: copied ? th.accent : th.textM,
+                    fontSize: "12px", cursor: "pointer", fontFamily: FF, fontWeight: 600,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <Copy size={12} weight="bold" />
+                  {copied ? "복사됨" : "복사"}
+                </button>
+                <button
+                  onClick={generate}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "5px",
+                    padding: "7px 12px", borderRadius: "9px",
+                    border: `1px solid ${th.accent}30`,
+                    background: th.accent + "12",
+                    color: th.accent, fontSize: "12px", cursor: "pointer",
+                    fontFamily: FF, fontWeight: 700, transition: "all 0.2s",
+                  }}
+                >
+                  <Robot size={12} weight="bold" />
+                  재생성
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: th.textM, padding: "6px", borderRadius: "8px",
+                display: "flex", alignItems: "center",
+              }}
+            >
+              <X size={18} weight="bold" />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          {loading && (
+            <div style={{
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", padding: "60px 20px", gap: "16px",
+            }}>
+              <div style={{
+                width: "40px", height: "40px", borderRadius: "50%",
+                border: `3px solid ${th.border}`,
+                borderTopColor: th.accent,
+                animation: "spin 0.8s linear infinite",
+              }} />
+              <div style={{ color: th.textM, fontSize: "13px", fontFamily: FF }}>
+                자기소개서를 작성하고 있습니다...
+              </div>
+            </div>
+          )}
+          {error && !loading && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              background: "#1C0A0A", border: "1px solid #5B1A1A",
+              borderRadius: "10px", padding: "14px 16px",
+              color: "#FB7185", fontSize: "13px", fontFamily: FF,
+            }}>
+              <WarningCircle size={16} color="#EF4444" weight="bold" />
+              {error}
+              <button
+                onClick={generate}
+                style={{
+                  marginLeft: "auto", background: "transparent",
+                  border: "1px solid #5B1A1A", color: "#FB7185",
+                  padding: "4px 10px", borderRadius: "6px",
+                  fontSize: "11px", cursor: "pointer", fontFamily: FF,
+                }}
+              >
+                재시도
+              </button>
+            </div>
+          )}
+          {text && !loading && (
+            <div style={{ lineHeight: 1.7 }}>
+              {renderText(text)}
+            </div>
+          )}
+        </div>
+
+        {/* Footer hint */}
+        {!loading && (
+          <div style={{
+            padding: "12px 24px", borderTop: `1px solid ${th.border}`,
+            color: th.textM, fontSize: "11px", fontFamily: FF, flexShrink: 0,
+          }}>
+            AI가 생성한 초안입니다. 본인의 실제 경험에 맞게 수정하여 사용하세요.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  JOB CARD (with AI features)                               */
+/* ═══════════════════════════════════════════════════════════ */
+function JobCard({ job, index, mode, th, profile, onCoverLetter }) {
   const sites = mode === "visual" ? SITES_VISUAL : SITES_GENERAL;
   const site = sites.find(s => job.site?.includes(s.name) || job.site?.toLowerCase().includes(s.id));
   const accent = site?.color || th.accent;
+
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisText, setAnalysisText] = useState("");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+
+  const matchScore = computeMatchScore(job, profile);
+
+  const handleAnalyze = async (e) => {
+    e.stopPropagation();
+    if (analysisText) { setShowAnalysis(prev => !prev); return; }
+    setShowAnalysis(true);
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    const prompt = `다음 채용공고를 간략하게 분석해주세요.
+
+채용공고:
+- 직무: ${job.title}
+- 회사: ${job.company}
+- 위치: ${job.location || "미기재"}
+- 급여: ${job.salary || "미기재"}
+- 경력: ${job.experience || "미기재"}
+- 고용형태: ${job.type || "미기재"}${job.role ? `\n- 세부 직무: ${job.role}` : ""}${job.tools ? `\n- 필요 툴: ${job.tools}` : ""}${job.industry ? `\n- 업종: ${job.industry}` : ""}
+
+다음 형식으로 짧고 명확하게 분석해주세요 (각 항목 2~3개 bullet):
+
+**핵심 요구사항**
+• ...
+
+**이런 분에게 유리해요**
+• ...
+
+**지원 전 체크포인트**
+• ...`;
+    try {
+      const result = await callClaudeAPI(prompt);
+      setAnalysisText(result);
+    } catch (err) {
+      setAnalysisError("분석 오류: " + err.message);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleCoverLetter = (e) => {
+    e.stopPropagation();
+    onCoverLetter(job);
+  };
+
+  const renderAnalysis = (raw) => {
+    return raw.split("\n").map((line, i) => {
+      if (line.startsWith("**") && line.endsWith("**")) {
+        return (
+          <div key={i} style={{
+            fontWeight: 700, fontSize: "11px", color: accent,
+            margin: i === 0 ? "0 0 5px" : "12px 0 5px",
+            fontFamily: FF, textTransform: "uppercase", letterSpacing: "0.06em",
+          }}>
+            {line.replace(/\*\*/g, "")}
+          </div>
+        );
+      }
+      if (line.startsWith("•")) {
+        return (
+          <div key={i} style={{
+            color: th.textP, fontSize: "12px", lineHeight: 1.6,
+            fontFamily: FF, paddingLeft: "4px", marginBottom: "3px",
+          }}>
+            {line}
+          </div>
+        );
+      }
+      if (line.trim() === "") return null;
+      return (
+        <div key={i} style={{ color: th.textM, fontSize: "12px", lineHeight: 1.6, fontFamily: FF }}>
+          {line}
+        </div>
+      );
+    });
+  };
+
+  const scoreColor = matchScore >= 75 ? "#10B981" : matchScore >= 50 ? "#F59E0B" : "#EF4444";
 
   return (
     <div
@@ -365,17 +990,31 @@ function JobCard({ job, index, mode, th }) {
               {job.company}
             </p>
           </div>
-          {site && (
-            <span style={{
-              background: accent + "15", color: accent,
-              padding: "3px 9px", borderRadius: "20px",
-              fontSize: "10.5px", fontWeight: 700,
-              whiteSpace: "nowrap", flexShrink: 0,
-              border: `1px solid ${accent}25`, fontFamily: FF,
-            }}>
-              {site.name}
-            </span>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+            {matchScore !== null && (
+              <span style={{
+                background: scoreColor + "15", color: scoreColor,
+                padding: "3px 8px", borderRadius: "20px",
+                fontSize: "10.5px", fontWeight: 800,
+                border: `1px solid ${scoreColor}25`, fontFamily: FF,
+                display: "flex", alignItems: "center", gap: "3px",
+              }}>
+                <Robot size={9} weight="bold" />
+                {matchScore}%
+              </span>
+            )}
+            {site && (
+              <span style={{
+                background: accent + "15", color: accent,
+                padding: "3px 9px", borderRadius: "20px",
+                fontSize: "10.5px", fontWeight: 700,
+                whiteSpace: "nowrap",
+                border: `1px solid ${accent}25`, fontFamily: FF,
+              }}>
+                {site.name}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Divider */}
@@ -405,6 +1044,85 @@ function JobCard({ job, index, mode, th }) {
             }}>
               {job.url.replace(/https?:\/\//, "").split("/")[0]}
             </span>
+          </div>
+        )}
+
+        {/* AI Action Buttons */}
+        <div style={{
+          marginTop: "14px", paddingTop: "12px",
+          borderTop: `1px solid ${th.border}`,
+          display: "flex", gap: "7px", alignItems: "center",
+        }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={handleAnalyze}
+            style={{
+              display: "flex", alignItems: "center", gap: "5px",
+              padding: "6px 11px", borderRadius: "8px",
+              border: `1px solid ${showAnalysis ? accent + "40" : th.border}`,
+              background: showAnalysis ? accent + "12" : "transparent",
+              color: showAnalysis ? accent : th.textM,
+              fontSize: "11.5px", fontWeight: 600, cursor: "pointer",
+              fontFamily: FF, transition: "all 0.2s",
+            }}
+          >
+            <Robot size={11} weight="bold" />
+            {analysisLoading ? "분석중..." : analysisText ? (showAnalysis ? "분석 닫기" : "분석 보기") : "AI 분석"}
+          </button>
+          <button
+            onClick={handleCoverLetter}
+            style={{
+              display: "flex", alignItems: "center", gap: "5px",
+              padding: "6px 11px", borderRadius: "8px",
+              border: `1px solid ${th.border}`,
+              background: "transparent",
+              color: th.textM,
+              fontSize: "11.5px", fontWeight: 600, cursor: "pointer",
+              fontFamily: FF, transition: "all 0.2s",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = th.accent + "40";
+              e.currentTarget.style.color = th.accent;
+              e.currentTarget.style.background = th.accent + "10";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = th.border;
+              e.currentTarget.style.color = th.textM;
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <PencilSimple size={11} weight="bold" />
+            지원서 작성
+          </button>
+        </div>
+
+        {/* Analysis Panel */}
+        {showAnalysis && (
+          <div style={{
+            marginTop: "12px", padding: "14px 16px",
+            background: th.surfaceAlt, borderRadius: "10px",
+            border: `1px solid ${accent}20`,
+            animation: "slideUp 0.25s ease",
+          }}
+            onClick={e => e.stopPropagation()}
+          >
+            {analysisLoading && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: th.textM, fontSize: "12px", fontFamily: FF }}>
+                <div style={{
+                  width: "14px", height: "14px", borderRadius: "50%",
+                  border: `2px solid ${th.border}`, borderTopColor: accent,
+                  animation: "spin 0.7s linear infinite", flexShrink: 0,
+                }} />
+                공고를 분석하고 있습니다...
+              </div>
+            )}
+            {analysisError && (
+              <div style={{ color: "#FB7185", fontSize: "12px", fontFamily: FF }}>
+                {analysisError}
+              </div>
+            )}
+            {analysisText && !analysisLoading && renderAnalysis(analysisText)}
           </div>
         )}
       </div>
@@ -588,6 +1306,16 @@ export default function UnifiedJobAggregator() {
   const [searched, setSearched] = useState(false);
   const inputRef = useRef(null);
 
+  // ── AI / Profile state ──
+  const [profile, setProfile] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("hj_profile") || "{}"); } catch { return {}; }
+  });
+  const [showProfile, setShowProfile] = useState(false);
+  const [nlMode, setNlMode] = useState(false);
+  const [nlParsedMsg, setNlParsedMsg] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
+  const [coverJob, setCoverJob] = useState(null);
+
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setRoleV("전체 직무"); }, [visualCat]);
 
@@ -597,6 +1325,11 @@ export default function UnifiedJobAggregator() {
   const th = getTheme(mode);
   const sites = isV ? SITES_VISUAL : SITES_GENERAL;
   const selectedSites = isV ? sitesV : sitesG;
+
+  const saveProfile = (p) => {
+    setProfile(p);
+    localStorage.setItem("hj_profile", JSON.stringify(p));
+  };
 
   const toggleSite = (id) => {
     const setter = isV ? setSitesV : setSitesG;
@@ -660,39 +1393,85 @@ export default function UnifiedJobAggregator() {
     return list;
   }, [jobs, resultFilter, sortBy]);
 
-  const searchJobs = async () => {
-    if (!keyword.trim()) return;
+  /* ── NL Query Parser ── */
+  const parseNLQuery = async (nlText) => {
+    const prompt = `다음 한국어 취업 검색 문장을 분석해서 JSON으로 변환하세요.
+
+입력: "${nlText}"
+
+가능한 필터값:
+- keyword: 검색할 주요 키워드/직무 (string)
+- region: 전체|서울|경기|인천|부산|대구|대전|광주|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주|해외/리모트
+- jobType: 전체|정규직|계약직|인턴|아르바이트|프리랜서|파견직
+- experience: 전체|신입|1~3년|3~5년|5~10년|10년 이상|경력무관
+- education: 전체|학력무관|고졸|전문대졸|대졸|석사 이상
+- toolV: 전체|Maya|Blender|3ds Max|Cinema 4D|Houdini|ZBrush|After Effects|Premiere Pro|DaVinci Resolve|Nuke|Photoshop|Clip Studio|Toon Boom|Unreal Engine|Unity|Substance|Final Cut Pro
+- visualCat: all|animation|film|broadcast|game|motiongfx|webtoon|video
+
+JSON만 응답, 매핑되지 않는 항목은 제외:
+{"keyword":"...","region":"...","experience":"..."}`;
+
+    const text = await callClaudeAPI(prompt);
+    try {
+      const m = text.match(/\{[\s\S]*\}/);
+      if (m) return JSON.parse(m[0]);
+    } catch {}
+    return { keyword: nlText };
+  };
+
+  /* ── Main Search ── */
+  const searchJobs = async (overrides = {}) => {
+    const effectiveKeyword = overrides.keyword ?? keyword;
+    if (!effectiveKeyword.trim()) return;
+
+    const effectiveRegion = overrides.region ?? region;
+    const effectiveJobType = overrides.jobType ?? jobType;
+    const effectiveExperience = overrides.experience ?? experience;
+    const effectiveEducation = overrides.education ?? education;
+    const effectiveVisualCat = overrides.visualCat ?? visualCat;
+    const effectiveToolV = overrides.toolV ?? toolV;
+    const effectiveRoleV = overrides.roleV ?? roleV;
+    const effectiveIndustryG = overrides.industryG ?? industryG;
+
     setLoading(true); setError(""); setJobs([]); setSearched(true); setResultFilter("");
 
     const siteNames = selectedSites.map(id => sites.find(s => s.id === id)?.name).filter(Boolean).join(", ");
-    const salaryQ = salaryMin > 0 ? (salaryMin >= 10000 ? "연봉 1억원 이상" : `연봉 ${salaryMin.toLocaleString()}만원 이상`) : "";
-    const expQ = EXPERIENCE_LEVELS.find(e => e.label === experience)?.query || "";
-    const eduQ = EDUCATION_LEVELS.find(e => e.label === education)?.query || "";
+    const effectiveSalaryMin = SALARY_MARKS[salaryIdx] || 0;
+    const salaryQ = effectiveSalaryMin > 0
+      ? (effectiveSalaryMin >= 10000 ? "연봉 1억원 이상" : `연봉 ${effectiveSalaryMin.toLocaleString()}만원 이상`)
+      : "";
+    const expQ = EXPERIENCE_LEVELS.find(e => e.label === effectiveExperience)?.query || "";
+    const eduQ = EDUCATION_LEVELS.find(e => e.label === effectiveEducation)?.query || "";
 
     let industryContext = "", roleQ = "", toolQ = "";
 
     if (isV) {
-      const catObj = VISUAL_CATEGORIES.find(c => c.id === visualCat);
-      if (visualCat !== "all") industryContext = `분야: ${catObj?.label} 업계`;
-      const roles = VISUAL_ROLES[visualCat] || VISUAL_ROLES.all;
-      roleQ = roles.find(r => r.label === roleV)?.query || "";
-      toolQ = TOOLS_SOFTWARE.find(t => t.label === toolV)?.query || "";
+      const catObj = VISUAL_CATEGORIES.find(c => c.id === effectiveVisualCat);
+      if (effectiveVisualCat !== "all") industryContext = `분야: ${catObj?.label} 업계`;
+      const roles = VISUAL_ROLES[effectiveVisualCat] || VISUAL_ROLES.all;
+      roleQ = roles.find(r => r.label === effectiveRoleV)?.query || "";
+      toolQ = TOOLS_SOFTWARE.find(t => t.label === effectiveToolV)?.query || "";
     } else {
-      const indQ = INDUSTRIES_GENERAL.find(i => i.label === industryG)?.query || "";
+      const indQ = INDUSTRIES_GENERAL.find(i => i.label === effectiveIndustryG)?.query || "";
       if (indQ) industryContext = `업종: ${indQ}`;
     }
 
     const conditions = [
-      region !== "전체" && `지역: ${region}`, jobType !== "전체" && `고용형태: ${jobType}`,
-      salaryQ, expQ && `경력: ${expQ}`, eduQ && `학력: ${eduQ}`,
-      industryContext, roleQ && `직무: ${roleQ}`, toolQ && `사용 툴: ${toolQ}`,
+      effectiveRegion !== "전체" && `지역: ${effectiveRegion}`,
+      effectiveJobType !== "전체" && `고용형태: ${effectiveJobType}`,
+      salaryQ,
+      expQ && `경력: ${expQ}`,
+      eduQ && `학력: ${eduQ}`,
+      industryContext,
+      roleQ && `직무: ${roleQ}`,
+      toolQ && `사용 툴: ${toolQ}`,
     ].filter(Boolean).join("\n");
 
     const sortMap = { recent: "최신 공고 우선", salary_desc: "연봉 높은 순서", deadline: "마감일 임박 순서", relevance: "관련도 순서" };
 
     const modeDesc = isV
-      ? `한국의 애니메이션, 영화, 방송, 게임, 모션그래픽, 웹툰, 영상제작 업계에서 "${keyword}" 관련 채용 공고를 검색해주세요.\n검색 대상: ${siteNames} 및 영상/미디어 관련 채용이 있는 모든 사이트`
-      : `한국 취업 사이트에서 "${keyword}" 관련 채용 공고를 검색해주세요.\n검색 대상 사이트: ${siteNames}`;
+      ? `한국의 애니메이션, 영화, 방송, 게임, 모션그래픽, 웹툰, 영상제작 업계에서 "${effectiveKeyword}" 관련 채용 공고를 검색해주세요.\n검색 대상: ${siteNames} 및 영상/미디어 관련 채용이 있는 모든 사이트`
+      : `한국 취업 사이트에서 "${effectiveKeyword}" 관련 채용 공고를 검색해주세요.\n검색 대상 사이트: ${siteNames}`;
 
     const extraFields = isV
       ? `"role": "세부 직무 (예: 2D 애니메이터, VFX 아티스트, 영상 편집 등)",\n    "tools": "필요 툴/소프트웨어 (예: Maya, After Effects 등)",`
@@ -722,19 +1501,7 @@ ${conditions}
 ]`;
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 4000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      if (!response.ok) throw new Error(`API 오류: ${response.status}`);
-      const data = await response.json();
-      let allText = "";
-      for (const block of data.content) { if (block.type === "text") allText += block.text + "\n"; }
+      const allText = await callClaudeAPI(prompt, true);
       const parsed = parseJobs(allText);
       if (parsed.length > 0) setJobs(parsed);
       else setError("검색 결과를 파싱할 수 없습니다. 다른 키워드로 시도해보세요.");
@@ -746,9 +1513,41 @@ ${conditions}
     }
   };
 
+  /* ── Search handler (with optional NL parsing) ── */
+  const handleSearch = async () => {
+    if (!keyword.trim()) return;
+    setNlParsedMsg("");
+
+    if (nlMode) {
+      setNlLoading(true);
+      try {
+        const parsed = await parseNLQuery(keyword);
+        const parts = [];
+        if (parsed.keyword) parts.push(`키워드: ${parsed.keyword}`);
+        if (parsed.region && parsed.region !== "전체") parts.push(`지역: ${parsed.region}`);
+        if (parsed.experience && parsed.experience !== "전체") parts.push(`경력: ${parsed.experience}`);
+        if (parsed.jobType && parsed.jobType !== "전체") parts.push(`고용형태: ${parsed.jobType}`);
+        if (parsed.toolV && parsed.toolV !== "전체") parts.push(`툴: ${parsed.toolV}`);
+        if (parsed.visualCat && parsed.visualCat !== "all") {
+          const c = VISUAL_CATEGORIES.find(x => x.id === parsed.visualCat);
+          if (c) parts.push(`분야: ${c.label}`);
+        }
+        if (parts.length > 0) setNlParsedMsg("AI 해석 → " + parts.join(" · "));
+        await searchJobs(parsed);
+      } catch (err) {
+        await searchJobs();
+      } finally {
+        setNlLoading(false);
+      }
+    } else {
+      await searchJobs();
+    }
+  };
+
   const filterCount = activeFilters.length + (selectedSites.length < sites.length ? 1 : 0);
   const roles = VISUAL_ROLES[visualCat] || VISUAL_ROLES.all;
   const quickTags = isV ? QUICK_KEYWORDS.visual : QUICK_KEYWORDS.general;
+  const hasProfile = !!(profile?.name || profile?.skills || profile?.intro);
 
   /* ─── CSS ─── */
   const css = `
@@ -756,8 +1555,9 @@ ${conditions}
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&display=swap');
     @keyframes slideUp { from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);} }
     @keyframes shimmer { 0%{background-position:-200% center;}100%{background-position:200% center;} }
+    @keyframes spin { from{transform:rotate(0deg);}to{transform:rotate(360deg);} }
     * { box-sizing: border-box; }
-    input, select, button { font-family: ${FF}; }
+    input, select, button, textarea { font-family: ${FF}; }
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: ${th.border}; border-radius: 3px; }
@@ -795,7 +1595,7 @@ ${conditions}
         <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 24px", position: "relative", zIndex: 1 }}>
 
           {/* Top bar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 0 30px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 0 30px", flexWrap: "wrap", gap: "12px" }}>
             {/* Logo */}
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <div style={{
@@ -813,31 +1613,52 @@ ${conditions}
               </span>
             </div>
 
-            {/* Mode tabs */}
-            <div style={{ display: "flex", background: th.surface, borderRadius: "12px", padding: "3px", border: `1px solid ${th.border}` }}>
-              {[
-                { id: "general", label: "일반 채용", Icon: Briefcase },
-                { id: "visual",  label: "영상 전문",  Icon: FilmSlate },
-              ].map(t => {
-                const active = mode === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => { setMode(t.id); setJobs([]); setSearched(false); setError(""); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "6px",
-                      padding: "8px 14px", borderRadius: "9px", border: "none",
-                      background: active ? th.accent + "18" : "transparent",
-                      color: active ? th.accent : th.textM,
-                      fontSize: "13px", fontWeight: active ? 700 : 500,
-                      cursor: "pointer", transition: "all 0.2s", fontFamily: FF,
-                    }}
-                  >
-                    <t.Icon size={14} weight={active ? "bold" : "regular"} />
-                    {t.label}
-                  </button>
-                );
-              })}
+            {/* Right side: mode tabs + profile */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {/* Mode tabs */}
+              <div style={{ display: "flex", background: th.surface, borderRadius: "12px", padding: "3px", border: `1px solid ${th.border}` }}>
+                {[
+                  { id: "general", label: "일반 채용", Icon: Briefcase },
+                  { id: "visual",  label: "영상 전문",  Icon: FilmSlate },
+                ].map(t => {
+                  const active = mode === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => { setMode(t.id); setJobs([]); setSearched(false); setError(""); setNlParsedMsg(""); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        padding: "8px 14px", borderRadius: "9px", border: "none",
+                        background: active ? th.accent + "18" : "transparent",
+                        color: active ? th.accent : th.textM,
+                        fontSize: "13px", fontWeight: active ? 700 : 500,
+                        cursor: "pointer", transition: "all 0.2s", fontFamily: FF,
+                      }}
+                    >
+                      <t.Icon size={14} weight={active ? "bold" : "regular"} />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Profile button */}
+              <button
+                onClick={() => setShowProfile(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "8px 14px", borderRadius: "10px",
+                  border: `1px solid ${hasProfile ? th.accent + "40" : th.border}`,
+                  background: hasProfile ? th.accent + "12" : th.surface,
+                  color: hasProfile ? th.accent : th.textM,
+                  fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                  fontFamily: FF, transition: "all 0.2s",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <User size={14} weight={hasProfile ? "bold" : "regular"} />
+                {hasProfile ? (profile.name || "내 프로필") : "프로필 설정"}
+              </button>
             </div>
           </div>
 
@@ -865,17 +1686,38 @@ ${conditions}
           <div style={{
             display: "flex", gap: "8px",
             background: th.inputBg, borderRadius: "14px",
-            padding: "4px", border: `1px solid ${th.border}`,
+            padding: "4px", border: `1px solid ${nlMode ? th.accent + "50" : th.border}`,
+            transition: "border-color 0.3s",
           }}>
-            <div style={{ flex: 1, display: "flex", alignItems: "center", padding: "0 14px", gap: "10px" }}>
+            {/* NL toggle */}
+            <button
+              onClick={() => { setNlMode(prev => !prev); setNlParsedMsg(""); }}
+              title={nlMode ? "자연어 검색 OFF" : "자연어 검색 ON — 문장으로 검색"}
+              style={{
+                display: "flex", alignItems: "center", gap: "5px",
+                padding: "10px 12px", borderRadius: "10px", border: "none",
+                background: nlMode ? th.accent + "20" : "transparent",
+                color: nlMode ? th.accent : th.textM,
+                cursor: "pointer", flexShrink: 0, transition: "all 0.2s",
+              }}
+            >
+              <Lightning size={15} weight={nlMode ? "fill" : "regular"} />
+              {nlMode && <span style={{ fontSize: "10px", fontWeight: 800, fontFamily: FF }}>자연어</span>}
+            </button>
+
+            <div style={{ flex: 1, display: "flex", alignItems: "center", padding: "0 6px 0 0", gap: "8px" }}>
               <MagnifyingGlass size={17} color={th.textM} weight="bold" />
               <input
                 ref={inputRef}
                 type="text"
                 value={keyword}
                 onChange={e => setKeyword(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") searchJobs(); }}
-                placeholder={isV ? "직무, 스튜디오, 툴, 키워드..." : "직무, 회사명, 키워드 검색..."}
+                onKeyDown={e => { if (e.key === "Enter") handleSearch(); }}
+                placeholder={
+                  nlMode
+                    ? "예: 서울에서 Maya 쓰는 게임 회사 3년 경력..."
+                    : isV ? "직무, 스튜디오, 툴, 키워드..." : "직무, 회사명, 키워드 검색..."
+                }
                 style={{
                   flex: 1, background: "transparent", border: "none",
                   outline: "none", color: th.textP, fontSize: "15px",
@@ -884,21 +1726,44 @@ ${conditions}
               />
             </div>
             <button
-              onClick={searchJobs}
-              disabled={loading || !keyword.trim()}
+              onClick={handleSearch}
+              disabled={(loading || nlLoading) || !keyword.trim()}
               style={{
                 padding: "11px 26px", borderRadius: "11px", border: "none",
                 background: !keyword.trim() ? th.border : `linear-gradient(135deg, ${th.accent}, ${th.accentAlt})`,
                 color: !keyword.trim() ? th.textM : "#fff",
                 fontSize: "14px", fontWeight: 700,
-                cursor: loading ? "wait" : !keyword.trim() ? "default" : "pointer",
+                cursor: (loading || nlLoading) ? "wait" : !keyword.trim() ? "default" : "pointer",
                 transition: "all 0.2s", whiteSpace: "nowrap", fontFamily: FF,
                 boxShadow: keyword.trim() ? `0 4px 14px ${th.accent}30` : "none",
               }}
             >
-              {loading ? "검색중..." : "검색"}
+              {nlLoading ? "해석중..." : loading ? "검색중..." : "검색"}
             </button>
           </div>
+
+          {/* NL parsed message */}
+          {nlParsedMsg && (
+            <div style={{
+              marginTop: "10px", display: "flex", alignItems: "center", gap: "6px",
+              fontSize: "11.5px", color: th.accent, fontFamily: FF, fontWeight: 600,
+              animation: "slideUp 0.3s ease",
+            }}>
+              <Robot size={12} weight="bold" />
+              {nlParsedMsg}
+            </div>
+          )}
+
+          {/* NL mode hint */}
+          {nlMode && !nlParsedMsg && (
+            <div style={{
+              marginTop: "10px", fontSize: "11.5px", color: th.textM,
+              fontFamily: FF, display: "flex", alignItems: "center", gap: "6px",
+            }}>
+              <Lightning size={11} color={th.accent} weight="bold" />
+              자연어로 검색하면 AI가 지역, 경력, 툴 등을 자동으로 파악합니다
+            </div>
+          )}
 
           {/* Quick tags */}
           {!searched && (
@@ -1068,12 +1933,23 @@ ${conditions}
         {jobs.length > 0 && !loading && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "18px" }}>
-              <p style={{ color: th.textM, fontSize: "13px", fontWeight: 600, margin: 0, fontFamily: FF }}>
-                <span style={{ color: th.accent, fontWeight: 800 }}>{displayJobs.length}</span>개 공고
-                {displayJobs.length !== jobs.length && (
-                  <span style={{ color: th.textM }}> (전체 {jobs.length}개 중)</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                <p style={{ color: th.textM, fontSize: "13px", fontWeight: 600, margin: 0, fontFamily: FF }}>
+                  <span style={{ color: th.accent, fontWeight: 800 }}>{displayJobs.length}</span>개 공고
+                  {displayJobs.length !== jobs.length && (
+                    <span style={{ color: th.textM }}> (전체 {jobs.length}개 중)</span>
+                  )}
+                </p>
+                {hasProfile && (
+                  <span style={{
+                    fontSize: "11px", color: th.textM, fontFamily: FF,
+                    display: "flex", alignItems: "center", gap: "4px",
+                  }}>
+                    <Robot size={11} weight="bold" />
+                    매칭 점수 표시 중
+                  </span>
                 )}
-              </p>
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", background: th.inputBg, borderRadius: "10px", padding: "7px 13px", border: `1px solid ${th.border}` }}>
                 <MagnifyingGlass size={13} color={th.textM} />
                 <input
@@ -1089,7 +1965,17 @@ ${conditions}
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: "14px" }}>
-              {displayJobs.map((job, i) => <JobCard key={i} job={job} index={i} mode={mode} th={th} />)}
+              {displayJobs.map((job, i) => (
+                <JobCard
+                  key={i}
+                  job={job}
+                  index={i}
+                  mode={mode}
+                  th={th}
+                  profile={profile}
+                  onCoverLetter={setCoverJob}
+                />
+              ))}
             </div>
             {displayJobs.length === 0 && (
               <div style={{ textAlign: "center", padding: "48px 20px", color: th.textM, fontSize: "14px", fontFamily: FF }}>
@@ -1116,9 +2002,25 @@ ${conditions}
             <h2 style={{ fontFamily: FF_DISPLAY, fontSize: "22px", fontWeight: 800, letterSpacing: "-0.03em", color: th.textP, margin: "0 0 8px" }}>
               {isV ? "영상·미디어 채용을 검색해보세요" : "채용공고를 검색해보세요"}
             </h2>
-            <p style={{ color: th.textM, fontSize: "14px", margin: "0 0 28px", lineHeight: 1.6, fontFamily: FF }}>
+            <p style={{ color: th.textM, fontSize: "14px", margin: "0 0 8px", lineHeight: 1.6, fontFamily: FF }}>
               {isV ? "국내 주요 영상·미디어 채용 사이트를 한번에 검색합니다." : "여러 취업 사이트의 공고를 한번에 모아서 보여드립니다."}
             </p>
+            {!hasProfile && (
+              <p style={{ color: th.textM, fontSize: "13px", margin: "0 0 24px", fontFamily: FF, display: "flex", alignItems: "center", gap: "6px" }}>
+                <User size={13} color={th.accent} />
+                <button
+                  onClick={() => setShowProfile(true)}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: th.accent, fontFamily: FF, fontSize: "13px",
+                    fontWeight: 600, padding: 0, textDecoration: "underline",
+                  }}
+                >
+                  프로필을 설정
+                </button>
+                하면 매칭 점수와 AI 자기소개서를 활용할 수 있습니다
+              </p>
+            )}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "7px" }}>
               {quickTags.map(tag => (
                 <button
@@ -1178,6 +2080,24 @@ ${conditions}
       }}>
         AI 웹 검색 기반 {isV ? "영상·미디어 업계" : "취업공고"} 통합검색 · 결과는 각 사이트의 최신 공고와 다를 수 있습니다
       </footer>
+
+      {/* ─── MODALS ─── */}
+      {showProfile && (
+        <ProfileModal
+          profile={profile}
+          onSave={(p) => { saveProfile(p); }}
+          onClose={() => setShowProfile(false)}
+          th={th}
+        />
+      )}
+      {coverJob && (
+        <CoverLetterModal
+          job={coverJob}
+          profile={profile}
+          onClose={() => setCoverJob(null)}
+          th={th}
+        />
+      )}
     </div>
   );
 }
