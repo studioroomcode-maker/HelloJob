@@ -1458,8 +1458,6 @@ export default function UnifiedJobAggregator() {
   const [toolV, setToolV] = useState("전체");
   const [sitesV, setSitesV] = useState(SITES_VISUAL.map(s => s.id));
 
-  const [extraSources, setExtraSources] = useState([]);
-
   /* results */
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1501,10 +1499,6 @@ export default function UnifiedJobAggregator() {
     else setter(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
   };
 
-  const toggleExtraSource = id => {
-    setExtraSources(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
-  };
-
   const clearFilter = key => ({
     region:    () => setRegion("전체"),
     jobType:   () => setJobType("전체"),
@@ -1523,7 +1517,6 @@ export default function UnifiedJobAggregator() {
     setRoleV("전체 직무"); setToolV("전체");
     setSitesG(SITES_GENERAL.map(s => s.id));
     setSitesV(SITES_VISUAL.map(s => s.id));
-    setExtraSources([]);
   };
 
   const activeFilters = useMemo(() => {
@@ -1607,21 +1600,20 @@ export default function UnifiedJobAggregator() {
 
     const sortMap = { recent:"최신 공고 우선", salary_desc:"연봉 높은 순서", deadline:"마감일 임박 순서", relevance:"관련도 순서" };
 
-    const extraSrcList = extraSources
-      .map(id => (isV ? EXTRA_SOURCES.visual : EXTRA_SOURCES.general).find(s => s.id === id))
-      .filter(Boolean);
-    const hasCommunity = extraSrcList.some(s => s.id === "community");
-    const specificSrcs = extraSrcList.filter(s => s.id !== "community" && s.url);
-    const extraSrcQ = [
-      specificSrcs.length > 0 && `추가 소스: ${specificSrcs.map(s => `${s.label}(${s.url})`).join(", ")}`,
-      hasCommunity && "네이버 블로그·카페·SNS·커뮤니티의 구인 게시글도 포함해서 검색",
-    ].filter(Boolean).join("\n");
-
-    const broadSearchNote = `채용공고 전용 사이트 외에도 블로그, 카페, 커뮤니티, SNS, 프리랜서 플랫폼 등에 올라온 구인·의뢰·일거리 게시글도 모두 포함해서 검색해주세요.`;
+    const allExtraSrcs = (isV ? EXTRA_SOURCES.visual : EXTRA_SOURCES.general)
+      .filter(s => s.url)
+      .map(s => `${s.label}(${s.url})`)
+      .join(", ");
 
     const modeDesc = isV
-      ? `한국의 애니메이션, 영화, 방송, 게임, 모션그래픽, 웹툰, 영상제작 업계에서 "${kw}" 관련 채용 공고와 프리랜서 의뢰를 검색해주세요.\n검색 대상: ${siteNames}\n${broadSearchNote}${extraSrcQ ? "\n" + extraSrcQ : ""}`
-      : `"${kw}" 관련 채용 공고와 구인 정보를 검색해주세요.\n검색 대상: ${siteNames}\n${broadSearchNote}${extraSrcQ ? "\n" + extraSrcQ : ""}`;
+      ? `한국의 애니메이션, 영화, 방송, 게임, 모션그래픽, 웹툰, 영상제작 업계에서 "${kw}" 관련 채용 공고와 프리랜서 의뢰를 검색해주세요.
+주요 채용 사이트: ${siteNames}
+추가 소스: ${allExtraSrcs}
+채용사이트 외에도 네이버 블로그·카페·커뮤니티·SNS·프리랜서 플랫폼 등에 올라온 구인·의뢰·일거리 게시글도 모두 포함해서 검색해주세요.`
+      : `"${kw}" 관련 채용 공고와 구인 정보를 검색해주세요.
+주요 채용 사이트: ${siteNames}
+추가 소스: ${allExtraSrcs}
+채용사이트 외에도 네이버 블로그·카페·커뮤니티·SNS·프리랜서 플랫폼 등에 올라온 구인·의뢰·일거리 게시글도 모두 포함해서 검색해주세요.`;
     const extraFields = isV
       ? `"role": "세부 직무",\n    "tools": "필요 툴/소프트웨어",`
       : `"industry": "업종/직종",`;
@@ -1687,7 +1679,7 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
     }
   };
 
-  const filterCount = activeFilters.length + (selectedSites.length < sites.length ? 1 : 0) + extraSources.length;
+  const filterCount = activeFilters.length + (selectedSites.length < sites.length ? 1 : 0);
   const roles       = VISUAL_ROLES[visualCat] || VISUAL_ROLES.all;
   const quickTags   = isV ? QUICK_KEYWORDS.visual : QUICK_KEYWORDS.general;
 
@@ -2050,41 +2042,6 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                       <Globe size={10} weight="bold" /> 검색 사이트
                     </p>
                     <SiteFilter sites={sites} selected={selectedSites} onToggle={toggleSite} th={th} />
-                  </div>
-
-                  {/* Extra Sources */}
-                  <div style={{ marginBottom: "16px" }}>
-                    <p style={{ fontSize: "10px", fontWeight: 700, color: th.textM, textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 9px", display: "flex", alignItems: "center", gap: "4px", fontFamily: FF }}>
-                      <PhLink size={10} weight="bold" /> 추가 검색 소스
-                    </p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
-                      {(isV ? EXTRA_SOURCES.visual : EXTRA_SOURCES.general).map(src => {
-                        const active = extraSources.includes(src.id);
-                        return (
-                          <button
-                            key={src.id}
-                            onClick={() => toggleExtraSource(src.id)}
-                            style={{
-                              display: "flex", alignItems: "center", gap: "5px",
-                              padding: "4px 11px", borderRadius: "99px", fontSize: "10.5px",
-                              border: `1px solid ${active ? src.color + "44" : th.border}`,
-                              background: active ? src.color + "12" : "transparent",
-                              color: active ? src.color : th.textM,
-                              fontWeight: active ? 700 : 500, cursor: "pointer",
-                              transition: "all 0.18s cubic-bezier(0.16,1,0.3,1)", fontFamily: FF,
-                            }}
-                          >
-                            <span style={{
-                              display: "inline-block", width: "5px", height: "5px", borderRadius: "50%",
-                              background: active ? src.color : th.border,
-                              flexShrink: 0, transition: "background 0.2s",
-                            }} />
-                            {src.label}
-                            <span style={{ fontSize: "9.5px", opacity: 0.6, fontWeight: 400 }}>{src.note}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
                   </div>
 
                   <div style={{ height: "1px", background: th.border, margin: "4px 0 16px" }} />
