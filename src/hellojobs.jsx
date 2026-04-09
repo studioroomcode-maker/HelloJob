@@ -2554,7 +2554,7 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
       }}>
         <span style={{ color: th.textS }}>AI 웹 검색 기반 {isV ? "영상·미디어" : "취업공고"} 통합검색 · 결과는 각 사이트 최신 공고와 다를 수 있습니다</span>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: th.textS, fontSize: "10.5px" }}>©{new Date().getFullYear()} Made by</span>
+          <span style={{ color: th.textS, fontSize: "10.5px" }}>©{new Date().getFullYear()} Made by StudioRoom</span>
           <img
             src="/logo-dark.png"
             alt="STUDIO ROOM"
