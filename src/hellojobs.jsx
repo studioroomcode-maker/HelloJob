@@ -9,6 +9,7 @@ import {
   Television, SquaresFour, FilmStrip, Swatches, BookOpen,
   CaretDown, WarningCircle, SmileySad, Buildings,
   User, Robot, PencilSimple, Copy, Lightning, ClipboardText, Plus,
+  Sun, Moon,
 } from "@phosphor-icons/react";
 
 /* ═══════════════════════════════════════════════════════════ */
@@ -450,20 +451,56 @@ function computeMatchScore(job, profile) {
 const FF      = "'Pretendard','Noto Sans KR',sans-serif";
 const FF_DISP = "'Outfit','Pretendard',sans-serif";
 
-function getTheme(mode) {
-  if (mode === "visual") return {
-    bg:         "#FDF8FF",
-    surface:    "#FFFFFF",
-    surfaceAlt: "#F5F0FC",
-    border:     "#E6DFF2",
-    borderHi:   "#CBBFE2",
-    accent:     "#C026D3",
-    accentAlt:  "#9333EA",
-    textP:      "#1A0F2E",
-    textM:      "#9181AA",
-    textS:      "#6B5D88",
-    inputBg:    "#FFFFFF",
-    glow:       "rgba(192,38,211,0.08)",
+function getTheme(mode, dark = false) {
+  if (mode === "visual") {
+    if (dark) return {
+      bg:         "#120D1E",
+      surface:    "#1C1530",
+      surfaceAlt: "#221B38",
+      border:     "#2E2448",
+      borderHi:   "#3D3060",
+      accent:     "#D946EF",
+      accentAlt:  "#A21CAF",
+      textP:      "#F0EAFB",
+      textM:      "#9B89B8",
+      textS:      "#6B5D88",
+      inputBg:    "#1C1530",
+      glow:       "rgba(217,70,239,0.15)",
+      modalShadow:"0 24px 64px rgba(0,0,0,0.55)",
+      errBg:"#2D1520", errBorder:"#5C2438", errText:"#F87171",
+    };
+    return {
+      bg:         "#FDF8FF",
+      surface:    "#FFFFFF",
+      surfaceAlt: "#F5F0FC",
+      border:     "#E6DFF2",
+      borderHi:   "#CBBFE2",
+      accent:     "#C026D3",
+      accentAlt:  "#9333EA",
+      textP:      "#1A0F2E",
+      textM:      "#9181AA",
+      textS:      "#6B5D88",
+      inputBg:    "#FFFFFF",
+      glow:       "rgba(192,38,211,0.08)",
+      modalShadow:"0 24px 64px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset",
+      errBg:"#FFF5F5", errBorder:"#FECDCA", errText:"#C0392B",
+    };
+  }
+  if (dark) return {
+    bg:         "#0F1117",
+    surface:    "#181B23",
+    surfaceAlt: "#1F232D",
+    border:     "#272B37",
+    borderHi:   "#353B4A",
+    accent:     "#10B981",
+    accentAlt:  "#059669",
+    textP:      "#EFF2F7",
+    textM:      "#8A909C",
+    textS:      "#5E6472",
+    inputBg:    "#181B23",
+    glow:       "rgba(16,185,129,0.12)",
+    modalShadow:"0 24px 64px rgba(0,0,0,0.55)",
+    errBg:"#0F2420", errBorder:"#1A4035", errText:"#6EE7B7",
   };
   return {
     bg:         "#F7F8FA",
@@ -478,6 +515,8 @@ function getTheme(mode) {
     textS:      "#5E6472",
     inputBg:    "#FFFFFF",
     glow:       "rgba(5,150,105,0.08)",
+    modalShadow:"0 24px 64px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset",
+    errBg:"#FFF5F5", errBorder:"#FECDCA", errText:"#C0392B",
   };
 }
 
@@ -640,7 +679,7 @@ function ProfileModal({ profile, onSave, onClose, th }) {
           borderRadius: "20px",
           width: "100%", maxWidth: "540px",
           maxHeight: "92vh", overflowY: "auto",
-          boxShadow: `0 24px 64px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset`,
+          boxShadow: th.modalShadow,
         }}
       >
         {/* Header */}
@@ -1135,7 +1174,7 @@ ${profileLines || "프로필 미입력"}
           borderRadius: "20px",
           width: "100%", maxWidth: "600px",
           maxHeight: "90vh", display: "flex", flexDirection: "column",
-          boxShadow: `0 24px 64px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset`,
+          boxShadow: th.modalShadow,
         }}
       >
         {/* Modal top bar */}
@@ -1663,7 +1702,9 @@ function ActiveFilters({ filters, onClear, onClearAll, th }) {
 /* ═══════════════════════════════════════════════════════════ */
 export default function UnifiedJobAggregator() {
   /* mode */
-  const [mode, setMode] = useState("visual");
+  const [mode, setMode] = useState(() => localStorage.getItem("hj_mode") || "visual");
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("hj_dark") === "1");
+  const toggleDark = () => setDarkMode(d => { localStorage.setItem("hj_dark", d ? "0" : "1"); return !d; });
 
   /* filters */
   const [keyword, setKeyword] = useState("");
@@ -1702,11 +1743,15 @@ export default function UnifiedJobAggregator() {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setRoleV("전체 직무"); }, [visualCat]);
+  useEffect(() => {
+    document.body.style.background = th.bg;
+    document.body.style.transition = "background 0.3s";
+  }, [th.bg]);
 
   // 자동 로드 제거 (비용 절감 — 검색 버튼으로만 호출)
 
   const isV        = mode === "visual";
-  const th         = getTheme(mode);
+  const th         = getTheme(mode, darkMode);
   const sites      = isV ? SITES_VISUAL : SITES_GENERAL;
   const selectedSites = isV ? sitesV : sitesG;
   const salaryMin  = SALARY_MARKS[salaryIdx] || 0;
@@ -2055,6 +2100,26 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                 })}
               </div>
 
+              {/* Dark mode toggle */}
+              <button
+                onClick={toggleDark}
+                className="hj-icon-btn"
+                title={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "34px", height: "34px", borderRadius: "10px",
+                  border: `1px solid ${th.border}`,
+                  background: th.surfaceAlt,
+                  color: th.textM, cursor: "pointer",
+                  transition: "all 0.2s cubic-bezier(0.16,1,0.3,1)",
+                  flexShrink: 0,
+                }}
+              >
+                {darkMode
+                  ? <Sun size={15} weight="bold" color={th.accent} />
+                  : <Moon size={15} weight="bold" />}
+              </button>
+
               {/* Profile button */}
               <button
                 onClick={() => setShowProfile(true)}
@@ -2377,11 +2442,11 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
         {error && !loading && (
           <div style={{
             display: "flex", alignItems: "center", gap: "12px",
-            background: "#FFF5F5", border: "1px solid #FECDCA",
+            background: th.errBg, border: `1px solid ${th.errBorder}`,
             borderRadius: "12px", padding: "16px 20px",
-            color: "#C0392B", fontSize: "13.5px", fontFamily: FF,
+            color: th.errText, fontSize: "13.5px", fontFamily: FF,
           }}>
-            <WarningCircle size={18} color="#E53E3E" weight="bold" />
+            <WarningCircle size={18} color={th.errText} weight="bold" />
             {error}
           </div>
         )}
