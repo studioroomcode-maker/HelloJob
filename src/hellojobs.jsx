@@ -318,7 +318,7 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     };
     if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
     const body = {
-      model: useWebSearch ? "claude-3-5-sonnet-20241022" : "claude-sonnet-4-6",
+      model: "claude-sonnet-4-6",
       max_tokens: useWebSearch ? 2000 : 1500,
       messages: [{ role: "user", content: prompt }],
     };
@@ -1848,7 +1848,12 @@ export default function UnifiedJobAggregator() {
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","industry":"","url":"","deadline":""}]`;
 
     try {
-      const text = await callClaudeAPI(prompt, true);
+      let text;
+      try {
+        text = await callClaudeAPI(prompt, true); // 웹검색 시도
+      } catch {
+        text = await callClaudeAPI(prompt, false); // 웹검색 실패 시 폴백
+      }
       const parsed = parseJobs(text);
       if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
       else if (parsed.length === 0) { if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요."); }
