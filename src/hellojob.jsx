@@ -341,32 +341,32 @@ const FF_DISP = "'Outfit','Pretendard',sans-serif";
 
 function getTheme(mode) {
   if (mode === "visual") return {
-    bg:         "#0A0812",
-    surface:    "#100C1E",
-    surfaceAlt: "#16122A",
-    border:     "#24193A",
-    borderHi:   "#3A2B5A",
-    accent:     "#E879B4",
-    accentAlt:  "#A855F7",
-    textP:      "#F5F0FF",
-    textM:      "#5E4E7A",
-    textS:      "#9B8AB5",
-    inputBg:    "#0E0B1A",
-    glow:       "rgba(232,121,180,0.14)",
+    bg:         "#FDF8FF",
+    surface:    "#FFFFFF",
+    surfaceAlt: "#F5F0FC",
+    border:     "#E6DFF2",
+    borderHi:   "#CBBFE2",
+    accent:     "#C026D3",
+    accentAlt:  "#9333EA",
+    textP:      "#1A0F2E",
+    textM:      "#9181AA",
+    textS:      "#6B5D88",
+    inputBg:    "#FFFFFF",
+    glow:       "rgba(192,38,211,0.08)",
   };
   return {
-    bg:         "#09090B",
-    surface:    "#111113",
-    surfaceAlt: "#18181B",
-    border:     "#27272A",
-    borderHi:   "#3F3F46",
-    accent:     "#10B981",
-    accentAlt:  "#059669",
-    textP:      "#FAFAFA",
-    textM:      "#52525B",
-    textS:      "#A1A1AA",
-    inputBg:    "#0F0F11",
-    glow:       "rgba(16,185,129,0.14)",
+    bg:         "#F7F8FA",
+    surface:    "#FFFFFF",
+    surfaceAlt: "#EFF1F5",
+    border:     "#E2E5EB",
+    borderHi:   "#C8CDD8",
+    accent:     "#059669",
+    accentAlt:  "#047857",
+    textP:      "#0F1117",
+    textM:      "#8A909C",
+    textS:      "#5E6472",
+    inputBg:    "#FFFFFF",
+    glow:       "rgba(5,150,105,0.08)",
   };
 }
 
@@ -487,7 +487,7 @@ function ProfileModal({ profile, onSave, onClose, th }) {
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 200,
-        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)",
+        background: "rgba(15,17,26,0.42)", backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "20px",
@@ -502,7 +502,7 @@ function ProfileModal({ profile, onSave, onClose, th }) {
           borderRadius: "20px",
           width: "100%", maxWidth: "520px",
           maxHeight: "90vh", overflowY: "auto",
-          boxShadow: `0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)`,
+          boxShadow: `0 24px 64px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset`,
         }}
       >
         {/* Header */}
@@ -619,7 +619,7 @@ function ProfileModal({ profile, onSave, onClose, th }) {
             className="hj-btn"
             style={{
               width: "100%", padding: "13px",
-              background: saved ? "#10B981" : `linear-gradient(135deg, ${th.accent}, ${th.accentAlt})`,
+              background: saved ? th.accent : `linear-gradient(135deg, ${th.accent}, ${th.accentAlt})`,
               border: "none", borderRadius: "11px",
               color: "#fff", fontSize: "13.5px", fontWeight: 700,
               cursor: "pointer", fontFamily: FF,
@@ -715,7 +715,7 @@ ${profileLines || "프로필 미입력"}
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 200,
-        background: "rgba(0,0,0,0.82)", backdropFilter: "blur(10px)",
+        background: "rgba(15,17,26,0.48)", backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "20px",
@@ -730,7 +730,7 @@ ${profileLines || "프로필 미입력"}
           borderRadius: "20px",
           width: "100%", maxWidth: "600px",
           maxHeight: "90vh", display: "flex", flexDirection: "column",
-          boxShadow: `0 40px 80px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)`,
+          boxShadow: `0 24px 64px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.9) inset`,
         }}
       >
         {/* Modal top bar */}
@@ -827,16 +827,16 @@ ${profileLines || "프로필 미입력"}
           {error && !loading && (
             <div style={{
               display: "flex", alignItems: "center", gap: "10px",
-              background: "#160808", border: "1px solid #3B1212",
+              background: "#FFF5F5", border: "1px solid #FECDCA",
               borderRadius: "10px", padding: "14px 16px",
-              color: "#F87171", fontSize: "12.5px", fontFamily: FF,
+              color: "#C0392B", fontSize: "12.5px", fontFamily: FF,
             }}>
-              <WarningCircle size={16} color="#EF4444" weight="bold" />
+              <WarningCircle size={16} color="#E53E3E" weight="bold" />
               {error}
               <button onClick={generate}
                 style={{
                   marginLeft: "auto", background: "transparent",
-                  border: "1px solid #3B1212", color: "#F87171",
+                  border: "1px solid #FECDCA", color: "#C0392B",
                   padding: "4px 10px", borderRadius: "7px",
                   fontSize: "11px", cursor: "pointer", fontFamily: FF,
                 }}>
@@ -875,7 +875,7 @@ function JobCard({ job, index, mode, th, profile, onCoverLetter }) {
   const [analysisError, setAnalysisError] = useState("");
 
   const matchScore = computeMatchScore(job, profile);
-  const scoreColor = matchScore >= 75 ? "#10B981" : matchScore >= 50 ? "#F59E0B" : "#F87171";
+  const scoreColor = matchScore >= 75 ? "#059669" : matchScore >= 50 ? "#D97706" : "#DC2626";
 
   /* spotlight */
   const handleMouseMove = e => {
@@ -967,7 +967,7 @@ function JobCard({ job, index, mode, th, profile, onCoverLetter }) {
       {/* Spotlight layer */}
       <div style={{
         position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0,
-        background: "radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.04), transparent 100%)",
+        background: "radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(0,0,0,0.028), transparent 100%)",
         opacity: "var(--spotlight, 0)",
         transition: "opacity 0.35s",
         borderRadius: "16px",
@@ -1024,15 +1024,15 @@ function JobCard({ job, index, mode, th, profile, onCoverLetter }) {
 
         {/* Tags */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
-          {job.salary    && <InfoTag Icon={CurrencyDollar} text={job.salary}    color="#10B981" th={th} />}
+          {job.salary    && <InfoTag Icon={CurrencyDollar} text={job.salary}    color="#059669" th={th} />}
           {job.location  && <InfoTag Icon={MapPin}         text={job.location}  th={th} />}
           {job.type      && <InfoTag Icon={FileText}       text={job.type}      th={th} />}
-          {job.experience&& <InfoTag Icon={Star}           text={job.experience}color="#F59E0B" th={th} />}
+          {job.experience&& <InfoTag Icon={Star}           text={job.experience}color="#D97706" th={th} />}
           {job.education && <InfoTag Icon={GraduationCap}  text={job.education} th={th} />}
-          {job.role      && <InfoTag Icon={Palette}        text={job.role}      color="#F472B6" th={th} />}
-          {job.tools     && <InfoTag Icon={Monitor}        text={job.tools}     color="#60A5FA" th={th} />}
+          {job.role      && <InfoTag Icon={Palette}        text={job.role}      color="#C026D3" th={th} />}
+          {job.tools     && <InfoTag Icon={Monitor}        text={job.tools}     color="#2563EB" th={th} />}
           {job.industry  && <InfoTag Icon={Factory}        text={job.industry}  th={th} />}
-          {job.deadline  && <InfoTag Icon={CalendarBlank}  text={job.deadline}  color="#F87171" th={th} />}
+          {job.deadline  && <InfoTag Icon={CalendarBlank}  text={job.deadline}  color="#DC2626" th={th} />}
         </div>
 
         {/* URL */}
@@ -1122,7 +1122,7 @@ function JobCard({ job, index, mode, th, profile, onCoverLetter }) {
                 분석 중입니다...
               </div>
             )}
-            {analysisError && <div style={{ color: "#F87171", fontSize: "12px", fontFamily: FF }}>{analysisError}</div>}
+            {analysisError && <div style={{ color: "#C0392B", fontSize: "12px", fontFamily: FF }}>{analysisError}</div>}
             {analysisText && !analysisLoading && renderAnalysis(analysisText)}
           </div>
         )}
@@ -1243,7 +1243,7 @@ function ActiveFilters({ filters, onClear, onClearAll, th }) {
         onClick={onClearAll}
         style={{
           background: "transparent", border: "none",
-          color: "#F87171", fontSize: "11px",
+          color: "#DC2626", fontSize: "11px",
           cursor: "pointer", fontWeight: 700, padding: "3px 6px", fontFamily: FF,
         }}
       >
@@ -1553,7 +1553,7 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
     .hj-card:hover {
       transform: translateY(-2px);
       border-color: ${th.borderHi} !important;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.36), 0 1px 0 rgba(255,255,255,0.04) inset;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04);
     }
 
     /* modal entrance */
@@ -1624,7 +1624,7 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                         fontSize: "12.5px", fontWeight: active ? 700 : 500,
                         cursor: "pointer", fontFamily: FF,
                         transition: "all 0.2s cubic-bezier(0.16,1,0.3,1)",
-                        boxShadow: active ? `0 1px 3px rgba(0,0,0,0.3)` : "none",
+                        boxShadow: active ? `0 1px 4px rgba(0,0,0,0.08)` : "none",
                       }}
                     >
                       <t.Icon size={13} weight={active ? "bold" : "regular"} />
@@ -1924,11 +1924,11 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
         {error && !loading && (
           <div style={{
             display: "flex", alignItems: "center", gap: "12px",
-            background: "#120808", border: "1px solid #3B1212",
+            background: "#FFF5F5", border: "1px solid #FECDCA",
             borderRadius: "12px", padding: "16px 20px",
-            color: "#F87171", fontSize: "13.5px", fontFamily: FF,
+            color: "#C0392B", fontSize: "13.5px", fontFamily: FF,
           }}>
-            <WarningCircle size={18} color="#EF4444" weight="bold" />
+            <WarningCircle size={18} color="#E53E3E" weight="bold" />
             {error}
           </div>
         )}
