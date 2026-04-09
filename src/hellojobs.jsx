@@ -1788,7 +1788,7 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                 fontFamily: FF_DISP, fontWeight: 900, fontSize: "16px",
                 letterSpacing: "-0.04em", color: th.textP,
               }}>
-                HelloJob
+                HelloJobs
               </span>
             </div>
 
