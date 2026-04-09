@@ -244,6 +244,40 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
   let userApiKey = "";
   try { userApiKey = JSON.parse(localStorage.getItem("hj_profile") || "{}").apiKey || ""; } catch {}
 
+  /* ── 로컬 개발 (npm run dev): Anthropic 직접 호출 ── */
+  if (import.meta.env.DEV) {
+    const key = userApiKey || import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+    if (!key) throw new Error(".env 파일에 VITE_ANTHROPIC_API_KEY를 추가해주세요.");
+
+    const headers = {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    };
+    if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
+
+    const body = {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: useWebSearch ? 4000 : 2000,
+      messages: [{ role: "user", content: prompt }],
+    };
+    if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
+
+    const devRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", headers, body: JSON.stringify(body),
+    });
+    if (!devRes.ok) {
+      const e = await devRes.json().catch(() => ({}));
+      throw new Error(e.error?.message || `API 오류: ${devRes.status}`);
+    }
+    const devData = await devRes.json();
+    let devText = "";
+    for (const b of devData.content) if (b.type === "text") devText += b.text;
+    return devText;
+  }
+
+  /* ── 프로덕션 (Vercel): 서버 프록시 경유 ── */
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
