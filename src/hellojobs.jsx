@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import logoDark  from "./assets/logo-dark.png";
+import logoWhite from "./assets/logo-white.png";
 import {
   MagnifyingGlass, Briefcase, FilmSlate, MapPin, CurrencyDollar,
   FileText, Star, GraduationCap, Palette, Monitor, Factory,
@@ -2571,9 +2573,9 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ color: th.textS, fontSize: "10.5px" }}>©{new Date().getFullYear()} Made by StudioRoom</span>
           <img
-            src="/logo-dark.png"
+            src={logoDark}
             alt="STUDIO ROOM"
-            style={{ height: "14px", opacity: 0.7, display: "block" }}
+            style={{ height: "16px", opacity: 0.75, display: "block" }}
           />
         </div>
       </footer>
