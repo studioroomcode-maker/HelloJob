@@ -2044,6 +2044,39 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                     <SiteFilter sites={sites} selected={selectedSites} onToggle={toggleSite} th={th} />
                   </div>
 
+                  {/* Always-on extra sources */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <p style={{
+                      fontSize: "10px", fontWeight: 700, color: th.textM,
+                      textTransform: "uppercase", letterSpacing: "0.1em",
+                      margin: "0 0 9px", display: "flex", alignItems: "center", gap: "4px", fontFamily: FF,
+                    }}>
+                      <PhLink size={10} weight="bold" /> 추가 소스
+                      <span style={{ fontSize: "9px", fontWeight: 500, opacity: 0.55, textTransform: "none", letterSpacing: 0, marginLeft: "2px" }}>항상 포함</span>
+                    </p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
+                      {(isV ? EXTRA_SOURCES.visual : EXTRA_SOURCES.general).map(src => (
+                        <span
+                          key={src.id}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: "5px",
+                            padding: "4px 11px", borderRadius: "99px", fontSize: "10.5px",
+                            border: `1px solid ${src.color}44`,
+                            background: `${src.color}10`,
+                            color: src.color,
+                            fontWeight: 600, fontFamily: FF,
+                          }}
+                        >
+                          <span style={{
+                            display: "inline-block", width: "5px", height: "5px", borderRadius: "50%",
+                            background: src.color, flexShrink: 0,
+                          }} />
+                          {src.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
                   <div style={{ height: "1px", background: th.border, margin: "4px 0 16px" }} />
 
                   {isV && (
