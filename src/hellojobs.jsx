@@ -1479,6 +1479,14 @@ export default function UnifiedJobAggregator() {
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setRoleV("전체 직무"); }, [visualCat]);
 
+  // 영상 전문 모드 진입 시 자동으로 전체 구인 로드
+  useEffect(() => {
+    if (mode === "visual") {
+      searchJobs({ keyword: "애니메이션 영화 방송 게임 모션그래픽 웹툰 영상제작 VFX CG 채용 구인" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   const isV        = mode === "visual";
   const th         = getTheme(mode);
   const sites      = isV ? SITES_VISUAL : SITES_GENERAL;
