@@ -256,7 +256,7 @@ function parseJobs(text) {
   if (block) {
     try {
       const p = JSON.parse(block[1]);
-      if (Array.isArray(p)) return p.filter(j => j.title && j.company);
+      if (Array.isArray(p)) return p.filter(j => j.title);
     } catch {}
   }
   // 2. Outermost [...] — find first [ and last ] to handle surrounding text
@@ -265,7 +265,7 @@ function parseJobs(text) {
   if (first !== -1 && last > first) {
     try {
       const p = JSON.parse(text.slice(first, last + 1));
-      if (Array.isArray(p)) return p.filter(j => j.title && j.company);
+      if (Array.isArray(p)) return p.filter(j => j.title);
     } catch {}
   }
   return null; // null = parse failed (distinct from [] = parsed but empty)
@@ -1831,17 +1831,27 @@ export default function UnifiedJobAggregator() {
       ? `"role": "세부 직무",\n    "tools": "필요 툴/소프트웨어",`
       : `"industry": "업종/직종",`;
 
+    const exampleFields = isV
+      ? `"role":"세부 직무 예: 3D 애니메이터","tools":"After Effects, Maya"`
+      : `"industry":"업종 예: IT/게임"`;
+
     const prompt = `${modeDesc}
 ${conditions}
 정렬: ${sortMap[effectiveSortBy]}
 
-[출력 형식 — 반드시 준수]
-아래 JSON 배열 형식으로만 응답하세요. 설명문, 인트로, 마크다운 코드블록 전혀 없이. 반드시 [ 로 시작하고 ] 로 끝나는 순수 JSON만 출력하세요. 결과가 없으면 [] 를 출력하세요. 최대 15개.
-[{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","education":"",${extraFields}"url":"","deadline":""}]`;
+[출력 규칙 — 반드시 준수]
+- 순수 JSON 배열만 출력. 설명문·인트로·마크다운 코드블록 절대 없이.
+- 반드시 [ 로 시작해서 ] 로 끝낼 것. 최대 15개.
+- 찾은 공고가 없으면 빈 배열 [] 출력.
+- 회사명 모를 경우 "미확인" 으로 기재.
+- 형식 예시(이 값들을 그대로 쓰지 말고 실제 검색 결과로 채울 것):
+[{"title":"영상편집자 채용","company":"스튜디오 예시","site":"사람인","location":"서울","salary":"3000만원","type":"정규직","experience":"경력 2년 이상","education":"학력무관",${exampleFields},"url":"https://...","deadline":"2025-05-31"}]`;
 
     try {
       const text = await callClaudeAPI(prompt, true);
+      console.log("[HelloJobs] raw response (first 800):", text.slice(0, 800));
       const parsed = parseJobs(text);
+      console.log("[HelloJobs] parsed jobs:", parsed?.length ?? "null");
       if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
       else if (parsed.length === 0) { if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요."); }
       else setJobs(parsed);
