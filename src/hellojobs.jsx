@@ -1742,6 +1742,9 @@ export default function UnifiedJobAggregator() {
 
   const inputRef = useRef(null);
 
+  const isV        = mode === "visual";
+  const th         = getTheme(mode, darkMode);
+
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setRoleV("전체 직무"); }, [visualCat]);
   useEffect(() => {
@@ -1750,9 +1753,6 @@ export default function UnifiedJobAggregator() {
   }, [th.bg]);
 
   // 자동 로드 제거 (비용 절감 — 검색 버튼으로만 호출)
-
-  const isV        = mode === "visual";
-  const th         = getTheme(mode, darkMode);
   const sites      = isV ? SITES_VISUAL : SITES_GENERAL;
   const selectedSites = isV ? sitesV : sitesG;
   const salaryMin  = SALARY_MARKS[salaryIdx] || 0;
