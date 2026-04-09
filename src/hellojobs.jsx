@@ -406,59 +406,6 @@ async function callAI(prompt) {
   return callClaudeAPI(prompt, false);
 }
 
-/* ── 사람인 API 코드 매핑 ── */
-const SARAMIN_LOC = {
-  "서울": "101000", "경기": "102000", "대전": "103000", "대구": "104000",
-  "광주": "105000", "부산": "106000", "울산": "107000", "인천": "108000",
-  "강원": "109000", "충북": "110000", "충남": "111000", "전북": "112000",
-  "전남": "113000", "경북": "114000", "경남": "115000", "제주": "116000",
-  "세종": "118000",
-};
-const SARAMIN_JOBTYPE = {
-  "정규직": "1", "계약직": "2", "인턴": "3", "아르바이트": "4", "프리랜서": "5",
-};
-const SARAMIN_EDU = {
-  "고졸": "7", "전문대졸": "6", "대졸": "4", "석사 이상": "5",
-};
-const SARAMIN_SORT = {
-  "recent": "pd", "deadline": "ed", "salary_desc": "sm", "relevance": "pd",
-};
-
-async function callSaraminAPI({ keywords, region, jobType, education, expMin, expMax, sortBy, count = 10 }) {
-  const params = { keywords, count };
-  if (region && region !== "전체" && SARAMIN_LOC[region]) params.loc_cd = SARAMIN_LOC[region];
-  if (jobType && jobType !== "전체" && SARAMIN_JOBTYPE[jobType]) params.job_type = SARAMIN_JOBTYPE[jobType];
-  if (education && education !== "전체" && SARAMIN_EDU[education]) params.edu_lv = SARAMIN_EDU[education];
-  if (expMin != null) params.exp_min = expMin;
-  if (expMax != null) params.exp_max = expMax;
-  if (sortBy && SARAMIN_SORT[sortBy]) params.sort = SARAMIN_SORT[sortBy];
-
-  const res = await fetch("/api/saramin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(e.error || `사람인 API 오류: ${res.status}`);
-  }
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-
-  const rawJobs = data?.jobs?.job || [];
-  return rawJobs.map(j => ({
-    title:      j.position?.title || "",
-    company:    j.company?.detail?.name || "미확인",
-    site:       "사람인",
-    location:   j.position?.location?.name || "",
-    salary:     j.salary?.name || "",
-    type:       j.position?.["job-type"]?.name || "",
-    experience: j.position?.["experience-level"]?.name || "",
-    industry:   j.position?.industry?.name || "",
-    url:        j.url || "",
-    deadline:   j["expiration-date"] ? String(j["expiration-date"]).slice(0, 10) : "",
-  })).filter(j => j.title);
-}
 
 function computeMatchScore(job, profile) {
   if (!profile) return null;
@@ -1947,72 +1894,16 @@ export default function UnifiedJobAggregator() {
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","industry":"","url":"","deadline":""}]`;
 
     try {
-      if (!isV) {
-        // ── 일반 모드: 사람인 API → 결과 없으면 Claude 폴백 ──
-        let saraminJobs = [];
-        let saraminError = null;
-
-        // 경력 연수 매핑
-        const expRangeMap = {
-          "신입": [0, 0], "1~3년": [1, 3], "3~5년": [3, 5],
-          "5~10년": [5, 10], "10년 이상": [10, 99], "경력무관": null,
-        };
-        const expRange = expRangeMap[effectiveExperience];
-        const expMin = expRange ? expRange[0] : undefined;
-        const expMax = expRange ? (expRange[1] === 99 ? undefined : expRange[1]) : undefined;
-
-        try {
-          saraminJobs = await callSaraminAPI({
-            keywords: kw,
-            region: effectiveRegion,
-            jobType: effectiveJobType,
-            education: effectiveEducation,
-            expMin,
-            expMax,
-            sortBy: effectiveSortBy,
-            count: 10,
-          });
-        } catch (e) {
-          saraminError = e.message;
-        }
-
-        if (saraminJobs.length > 0) {
-          setJobs(saraminJobs);
-          cacheWrite(ck, saraminJobs);
-        } else {
-          // 사람인 실패 또는 결과 없음 → Claude 웹검색 폴백
-          let text;
-          try {
-            text = await callClaudeAPI(prompt, true);
-          } catch {
-            text = await callClaudeAPI(prompt, false);
-          }
-          const parsed = parseJobs(text);
-          if (parsed === null) {
-            if (!isSilent) setError(saraminError
-              ? `사람인 오류(${saraminError}) — Claude 파싱도 실패했습니다.`
-              : "검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."
-            );
-          } else if (parsed.length === 0) {
-            if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요.");
-          } else {
-            setJobs(parsed);
-            cacheWrite(ck, parsed);
-          }
-        }
-      } else {
-        // ── 영상 모드: Claude 웹검색 (라임아지·아트잡 등 전문 소스 포함) ──
-        let text;
-        try {
-          text = await callClaudeAPI(prompt, true);
-        } catch {
-          text = await callClaudeAPI(prompt, false);
-        }
-        const parsed = parseJobs(text);
-        if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
-        else if (parsed.length === 0) { if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요."); }
-        else { setJobs(parsed); cacheWrite(ck, parsed); }
+      let text;
+      try {
+        text = await callClaudeAPI(prompt, true); // 웹검색 시도
+      } catch {
+        text = await callClaudeAPI(prompt, false); // 웹검색 실패 시 폴백
       }
+      const parsed = parseJobs(text);
+      if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
+      else if (parsed.length === 0) { if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요."); }
+      else { setJobs(parsed); cacheWrite(ck, parsed); }
     } catch (err) {
       if (!isSilent) setError(`검색 오류: ${err.message}`);
     } finally {
