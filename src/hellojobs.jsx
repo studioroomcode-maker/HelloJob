@@ -6,7 +6,7 @@ import {
   SlidersHorizontal, X, GameController, VideoCamera,
   Television, SquaresFour, FilmStrip, Swatches, BookOpen,
   CaretDown, WarningCircle, SmileySad, Buildings,
-  User, Robot, PencilSimple, Copy, Lightning, ClipboardText,
+  User, Robot, PencilSimple, Copy, Lightning, ClipboardText, Plus,
 } from "@phosphor-icons/react";
 
 /* ═══════════════════════════════════════════════════════════ */
@@ -526,6 +526,25 @@ function SelectField({ label, Icon, value, onChange, options, valueKey, th }) {
 }
 
 /* ═══════════════════════════════════════════════════════════ */
+/*  CAREER HELPERS                                            */
+/* ═══════════════════════════════════════════════════════════ */
+function calcDuration(sy, sm, ey, em, isCurrent) {
+  if (!sy || !sm) return "";
+  const start = new Date(Number(sy), Number(sm) - 1);
+  const end = isCurrent ? new Date() : (ey && em ? new Date(Number(ey), Number(em) - 1) : null);
+  if (!end) return "";
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  if (months <= 0) return "";
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return [y ? `${y}년` : "", m ? `${m}개월` : ""].filter(Boolean).join(" ");
+}
+const EMPTY_CAREER = { startYear: "", startMonth: "", endYear: "", endMonth: "", isCurrent: false, role: "", desc: "" };
+const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
+const THIS_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 40 }, (_, i) => String(THIS_YEAR - i));
+
+/* ═══════════════════════════════════════════════════════════ */
 /*  PROFILE MODAL                                             */
 /* ═══════════════════════════════════════════════════════════ */
 function ProfileModal({ profile, onSave, onClose, th }) {
@@ -533,7 +552,7 @@ function ProfileModal({ profile, onSave, onClose, th }) {
     name: "", expYears: "", skills: "", desiredSalary: "",
     desiredRegion: "전체", jobTypes: "전체",
     strength: "", specialty: "", hobby: "", experience: "", goal: "",
-    intro: "",
+    intro: "", careers: [], selfIntro: "",
     apiKey: "", geminiApiKey: "", aiProvider: "claude",
     ...profile,
   });
@@ -713,15 +732,173 @@ function ProfileModal({ profile, onSave, onClose, th }) {
                 </div>
               </div>
 
-              <div>
-                <label style={lbl}>주요 경험 / 프로젝트</label>
-                <textarea value={form.experience} onChange={e => set("experience", e.target.value)}
-                  rows={3}
-                  placeholder="○○ 애니메이션 스튜디오 인턴 6개월, 단편영화 VFX 참여, 팀 프로젝트 리드..."
-                  style={{ ...field, resize: "vertical", lineHeight: 1.65, minHeight: "76px" }}
-                  onFocus={focus} onBlur={blur} />
-              </div>
+            </div>
+          </div>
 
+          <div style={{ height: "1px", background: th.border }} />
+
+          {/* ── 경력 사항 ── */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <div style={sectionTitle}>
+                <Briefcase size={10} weight="bold" color={th.accent} />
+                경력 사항
+              </div>
+              <button
+                onClick={() => set("careers", [...(form.careers || []), { ...EMPTY_CAREER }])}
+                style={{
+                  display: "flex", alignItems: "center", gap: "4px",
+                  padding: "5px 10px", borderRadius: "7px",
+                  border: `1px solid ${th.accent}33`,
+                  background: `${th.accent}0a`, color: th.accent,
+                  fontSize: "11px", fontWeight: 700, cursor: "pointer",
+                  fontFamily: FF, transition: "all 0.15s",
+                }}
+              >
+                <Plus size={11} weight="bold" /> 경력 추가
+              </button>
+            </div>
+
+            {(!form.careers || form.careers.length === 0) && (
+              <div style={{
+                border: `1px dashed ${th.border}`, borderRadius: "12px",
+                padding: "20px", textAlign: "center",
+                color: th.textS, fontSize: "12px", fontFamily: FF,
+              }}>
+                + 경력 추가 버튼으로 경력을 입력하세요
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {(form.careers || []).map((c, idx) => {
+                const dur = calcDuration(c.startYear, c.startMonth, c.endYear, c.endMonth, c.isCurrent);
+                const updateCareer = (k, v) => {
+                  const next = [...form.careers];
+                  next[idx] = { ...next[idx], [k]: v };
+                  set("careers", next);
+                };
+                const removeCareer = () => {
+                  set("careers", form.careers.filter((_, i) => i !== idx));
+                };
+                const selStyle = {
+                  ...field, appearance: "none", cursor: "pointer",
+                  padding: "8px 10px", fontSize: "12px",
+                };
+                return (
+                  <div key={idx} style={{
+                    border: `1px solid ${th.border}`, borderRadius: "12px",
+                    padding: "14px", background: `${th.accent}05`,
+                    position: "relative",
+                  }}>
+                    {/* Delete button */}
+                    <button
+                      onClick={removeCareer}
+                      style={{
+                        position: "absolute", top: "10px", right: "10px",
+                        background: "transparent", border: "none", cursor: "pointer",
+                        color: th.textS, padding: "4px", borderRadius: "6px",
+                        display: "flex", alignItems: "center",
+                        transition: "color 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#EF4444"}
+                      onMouseLeave={e => e.currentTarget.style.color = th.textS}
+                    >
+                      <X size={14} weight="bold" />
+                    </button>
+
+                    {/* Date range row */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+                      {/* Start */}
+                      <select value={c.startYear} onChange={e => updateCareer("startYear", e.target.value)}
+                        style={{ ...selStyle, width: "80px" }}>
+                        <option value="">년도</option>
+                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                      <select value={c.startMonth} onChange={e => updateCareer("startMonth", e.target.value)}
+                        style={{ ...selStyle, width: "60px" }}>
+                        <option value="">월</option>
+                        {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      <span style={{ color: th.textS, fontSize: "12px", fontFamily: FF }}>~</span>
+                      {/* End or 현재 */}
+                      {!c.isCurrent && (
+                        <>
+                          <select value={c.endYear} onChange={e => updateCareer("endYear", e.target.value)}
+                            style={{ ...selStyle, width: "80px" }}>
+                            <option value="">년도</option>
+                            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <select value={c.endMonth} onChange={e => updateCareer("endMonth", e.target.value)}
+                            style={{ ...selStyle, width: "60px" }}>
+                            <option value="">월</option>
+                            {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                        </>
+                      )}
+                      <label style={{
+                        display: "flex", alignItems: "center", gap: "4px",
+                        fontSize: "11.5px", color: th.textM, cursor: "pointer", fontFamily: FF,
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={c.isCurrent}
+                          onChange={e => updateCareer("isCurrent", e.target.checked)}
+                          style={{ accentColor: th.accent, width: "13px", height: "13px" }}
+                        />
+                        현재
+                      </label>
+                      {dur && (
+                        <span style={{
+                          background: `${th.accent}15`, color: th.accent,
+                          fontSize: "10.5px", fontWeight: 700, fontFamily: FF,
+                          padding: "2px 8px", borderRadius: "99px",
+                          border: `1px solid ${th.accent}25`,
+                        }}>
+                          {dur}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Role */}
+                    <div style={{ marginBottom: "8px" }}>
+                      <label style={{ ...lbl, marginBottom: "5px" }}>직무 / 회사명</label>
+                      <input
+                        value={c.role}
+                        onChange={e => updateCareer("role", e.target.value)}
+                        placeholder="VFX 아티스트 · ○○스튜디오"
+                        style={{ ...field, fontSize: "12px", padding: "8px 12px" }}
+                        onFocus={focus} onBlur={blur}
+                      />
+                    </div>
+
+                    {/* Desc */}
+                    <div>
+                      <label style={{ ...lbl, marginBottom: "5px" }}>주요 업무 / 성과</label>
+                      <textarea
+                        value={c.desc}
+                        onChange={e => updateCareer("desc", e.target.value)}
+                        rows={2}
+                        placeholder="담당 프로젝트, 역할, 주요 성과를 간단히..."
+                        style={{ ...field, fontSize: "12px", padding: "8px 12px", resize: "vertical", lineHeight: 1.6, minHeight: "56px" }}
+                        onFocus={focus} onBlur={blur}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 그 외 자기소개 */}
+            <div style={{ marginTop: "14px" }}>
+              <label style={lbl}>그 외 자기소개</label>
+              <textarea
+                value={form.selfIntro}
+                onChange={e => set("selfIntro", e.target.value)}
+                rows={3}
+                placeholder="수상 경력, 자격증, 개인 프로젝트, 하고 싶은 말 등 자유롭게..."
+                style={{ ...field, resize: "vertical", lineHeight: 1.65, minHeight: "76px" }}
+                onFocus={focus} onBlur={blur}
+              />
             </div>
           </div>
 
@@ -826,8 +1003,20 @@ function CoverLetterModal({ job, profile, onClose, th }) {
       profile?.strength  && `핵심 강점: ${profile.strength}`,
       profile?.specialty && `특기: ${profile.specialty}`,
       profile?.hobby     && `취미·관심사: ${profile.hobby}`,
-      profile?.experience && `주요 경험: ${profile.experience}`,
       profile?.goal      && `커리어 목표: ${profile.goal}`,
+      (() => {
+        const careers = profile?.careers || [];
+        if (careers.length === 0) return profile?.experience ? `주요 경험: ${profile.experience}` : null;
+        const lines = careers.map((c, i) => {
+          const start = c.startYear && c.startMonth ? `${c.startYear}.${c.startMonth}` : "";
+          const end = c.isCurrent ? "현재" : (c.endYear && c.endMonth ? `${c.endYear}.${c.endMonth}` : "");
+          const period = start && end ? `${start} ~ ${end}` : start;
+          const dur = calcDuration(c.startYear, c.startMonth, c.endYear, c.endMonth, c.isCurrent);
+          return `${i + 1}. ${period}${dur ? ` (${dur})` : ""} | ${c.role || "직무 미입력"}${c.desc ? ` — ${c.desc}` : ""}`;
+        });
+        return `경력 사항:\n${lines.join("\n")}`;
+      })(),
+      profile?.selfIntro && `추가 소개: ${profile.selfIntro}`,
       profile?.intro     && `기타 소개: ${profile.intro}`,
     ].filter(Boolean).join("\n");
 
@@ -2358,13 +2547,20 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
       {/* ── FOOTER ── */}
       <footer style={{
         borderTop: `1px solid ${th.border}`,
-        padding: "20px 28px", maxWidth: "980px", margin: "0 auto",
+        padding: "20px 28px",
         color: th.textM, fontSize: "11px", fontFamily: FF,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        flexWrap: "wrap", gap: "8px",
+        flexWrap: "wrap", gap: "10px",
       }}>
-        <span>AI 웹 검색 기반 {isV ? "영상·미디어" : "취업공고"} 통합검색</span>
-        <span>결과는 각 사이트 최신 공고와 다를 수 있습니다</span>
+        <span style={{ color: th.textS }}>AI 웹 검색 기반 {isV ? "영상·미디어" : "취업공고"} 통합검색 · 결과는 각 사이트 최신 공고와 다를 수 있습니다</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ color: th.textS, fontSize: "10.5px" }}>©{new Date().getFullYear()} Made by</span>
+          <img
+            src="/logo-dark.png"
+            alt="STUDIO ROOM"
+            style={{ height: "14px", opacity: 0.7, display: "block" }}
+          />
+        </div>
       </footer>
 
       {/* ── MODALS ── */}
