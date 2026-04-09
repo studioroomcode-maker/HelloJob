@@ -247,6 +247,26 @@ const FILTER_ICON_MAP = {
 };
 
 /* ═══════════════════════════════════════════════════════════ */
+/*  SEARCH CACHE (30-min localStorage TTL)                    */
+/* ═══════════════════════════════════════════════════════════ */
+const CACHE_TTL = 30 * 60 * 1000;
+function cacheKey(params) {
+  return "hj_sc_" + Object.values(params).join("|").replace(/\s+/g, "_").slice(0, 120);
+}
+function cacheRead(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(key); return null; }
+    return data;
+  } catch { return null; }
+}
+function cacheWrite(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+}
+
+/* ═══════════════════════════════════════════════════════════ */
 /*  HELPERS                                                    */
 /* ═══════════════════════════════════════════════════════════ */
 function parseJobs(text) {
@@ -299,7 +319,7 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
     const body = {
       model: useWebSearch ? "claude-3-5-sonnet-20241022" : "claude-sonnet-4-6",
-      max_tokens: useWebSearch ? 4000 : 2000,
+      max_tokens: useWebSearch ? 2000 : 1500,
       messages: [{ role: "user", content: prompt }],
     };
     if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
@@ -377,10 +397,11 @@ async function callGeminiAPI(prompt) {
   return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-/* 일반 AI 호출 (Claude/Gemini 자동 라우팅, 웹 검색 없음) */
+/* 일반 AI 호출 — Gemini 키 있으면 우선 사용 (비용 절감), 없으면 Claude */
 async function callAI(prompt) {
-  const { provider } = getAIProvider();
+  const { provider, geminiKey } = getAIProvider();
   if (provider === "gemini") return callGeminiAPI(prompt);
+  if (geminiKey) return callGeminiAPI(prompt); // Gemini 키 있으면 자동 전환
   return callClaudeAPI(prompt, false);
 }
 
@@ -1682,13 +1703,7 @@ export default function UnifiedJobAggregator() {
   useEffect(() => { inputRef.current?.focus(); }, []);
   useEffect(() => { setRoleV("전체 직무"); }, [visualCat]);
 
-  // 영상 전문 모드 진입 시 자동으로 전체 구인 로드 (실패해도 에러 미표시)
-  useEffect(() => {
-    if (mode === "visual") {
-      searchJobs({ keyword: "애니메이션 영화 방송 게임 모션그래픽 웹툰 영상제작 VFX CG 채용 구인", silent: true });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  // 자동 로드 제거 (비용 절감 — 검색 버튼으로만 호출)
 
   const isV        = mode === "visual";
   const th         = getTheme(mode);
@@ -1782,9 +1797,18 @@ export default function UnifiedJobAggregator() {
     const effectiveIndustryG  = overrides.industryG  ?? industryG;
     const effectiveSortBy     = overrides.sortBy     ?? sortBy;
 
+    // ── 3. 캐시 확인 ──
+    const ck = cacheKey({ kw, effectiveRegion, effectiveJobType, effectiveExperience,
+      effectiveEducation, effectiveVisualCat, effectiveRoleV, effectiveToolV,
+      effectiveIndustryG, effectiveSortBy, salaryIdx, mode });
+    const cached = cacheRead(ck);
+    if (cached) {
+      setJobs(cached); setLoading(false);
+      return;
+    }
+
     setLoading(true); setError(""); setJobs([]); setSearched(true); setResultFilter("");
 
-    const siteNames = selectedSites.map(id => sites.find(s => s.id === id)?.name).filter(Boolean).join(", ");
     const effectiveSalMin = SALARY_MARKS[salaryIdx] || 0;
     const salaryQ = effectiveSalMin > 0
       ? (effectiveSalMin >= 10000 ? "연봉 1억원 이상" : `연봉 ${effectiveSalMin.toLocaleString()}만원 이상`)
@@ -1792,69 +1816,43 @@ export default function UnifiedJobAggregator() {
     const expQ = EXPERIENCE_LEVELS.find(e => e.label === effectiveExperience)?.query || "";
     const eduQ = EDUCATION_LEVELS.find(e => e.label === effectiveEducation)?.query || "";
 
-    let industryContext = "", roleQ = "", toolQ = "";
+    let industryCtx = "", roleQ = "", toolQ = "";
     if (isV) {
       const catObj = VISUAL_CATEGORIES.find(c => c.id === effectiveVisualCat);
-      if (effectiveVisualCat !== "all") industryContext = `분야: ${catObj?.label} 업계`;
+      if (effectiveVisualCat !== "all") industryCtx = `분야: ${catObj?.label}`;
       const roles = VISUAL_ROLES[effectiveVisualCat] || VISUAL_ROLES.all;
       roleQ = roles.find(r => r.label === effectiveRoleV)?.query || "";
       toolQ = TOOLS_SOFTWARE.find(t => t.label === effectiveToolV)?.query || "";
     } else {
       const indQ = INDUSTRIES_GENERAL.find(i => i.label === effectiveIndustryG)?.query || "";
-      if (indQ) industryContext = `업종: ${indQ}`;
+      if (indQ) industryCtx = `업종: ${indQ}`;
     }
 
-    const conditions = [
-      effectiveRegion !== "전체" && `지역: ${effectiveRegion}`,
-      effectiveJobType !== "전체" && `고용형태: ${effectiveJobType}`,
-      salaryQ, expQ && `경력: ${expQ}`, eduQ && `학력: ${eduQ}`,
-      industryContext, roleQ && `직무: ${roleQ}`, toolQ && `사용 툴: ${toolQ}`,
-    ].filter(Boolean).join("\n");
+    // ── 5. 단축 프롬프트 ──
+    const filters = [
+      effectiveRegion !== "전체" && effectiveRegion,
+      effectiveJobType !== "전체" && effectiveJobType,
+      salaryQ, expQ, eduQ, industryCtx, roleQ, toolQ,
+    ].filter(Boolean).join(", ");
 
-    const sortMap = { recent:"최신 공고 우선", salary_desc:"연봉 높은 순서", deadline:"마감일 임박 순서", relevance:"관련도 순서" };
+    const sortMap = { recent:"최신순", salary_desc:"연봉높은순", deadline:"마감임박순", relevance:"관련도순" };
 
-    const allExtraSrcs = (isV ? EXTRA_SOURCES.visual : EXTRA_SOURCES.general)
-      .filter(s => s.url)
-      .map(s => `${s.label}(${s.url})`)
-      .join(", ");
+    const extraFields = isV ? `"role":"","tools":"",` : `"industry":"",`;
 
-    const modeDesc = isV
-      ? `한국의 애니메이션, 영화, 방송, 게임, 모션그래픽, 웹툰, 영상제작 업계에서 "${kw}" 관련 채용 공고와 프리랜서 의뢰를 검색해주세요.
-주요 채용 사이트: ${siteNames}
-추가 소스: ${allExtraSrcs}
-채용사이트 외에도 네이버 블로그·카페·커뮤니티·SNS·프리랜서 플랫폼 등에 올라온 구인·의뢰·일거리 게시글도 모두 포함해서 검색해주세요.`
-      : `"${kw}" 관련 채용 공고와 구인 정보를 검색해주세요.
-주요 채용 사이트: ${siteNames}
-추가 소스: ${allExtraSrcs}
-채용사이트 외에도 네이버 블로그·카페·커뮤니티·SNS·프리랜서 플랫폼 등에 올라온 구인·의뢰·일거리 게시글도 모두 포함해서 검색해주세요.`;
-    const extraFields = isV
-      ? `"role": "세부 직무",\n    "tools": "필요 툴/소프트웨어",`
-      : `"industry": "업종/직종",`;
-
-    const exampleFields = isV
-      ? `"role":"세부 직무 예: 3D 애니메이터","tools":"After Effects, Maya"`
-      : `"industry":"업종 예: IT/게임"`;
-
-    const prompt = `${modeDesc}
-${conditions}
-정렬: ${sortMap[effectiveSortBy]}
-
-[출력 규칙 — 반드시 준수]
-- 순수 JSON 배열만 출력. 설명문·인트로·마크다운 코드블록 절대 없이.
-- 반드시 [ 로 시작해서 ] 로 끝낼 것. 최대 15개.
-- 찾은 공고가 없으면 빈 배열 [] 출력.
-- 회사명 모를 경우 "미확인" 으로 기재.
-- 형식 예시(이 값들을 그대로 쓰지 말고 실제 검색 결과로 채울 것):
-[{"title":"영상편집자 채용","company":"스튜디오 예시","site":"사람인","location":"서울","salary":"3000만원","type":"정규직","experience":"경력 2년 이상","education":"학력무관",${exampleFields},"url":"https://...","deadline":"2025-05-31"}]`;
+    const prompt = isV
+      ? `한국 영상·미디어 업계(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${kw}" 채용공고·프리랜서 의뢰를 사람인·잡코리아·원티드·LinkedIn·라임아지카페·아트잡·커뮤니티·블로그 등에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
+순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대10개. 회사모르면"미확인".
+[{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"",${extraFields}"url":"","deadline":""}]`
+      : `한국 "${kw}" 채용공고를 사람인·잡코리아·원티드·LinkedIn·커뮤니티에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
+순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대10개.
+[{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","industry":"","url":"","deadline":""}]`;
 
     try {
       const text = await callClaudeAPI(prompt, true);
-      console.log("[HelloJobs] raw response (first 800):", text.slice(0, 800));
       const parsed = parseJobs(text);
-      console.log("[HelloJobs] parsed jobs:", parsed?.length ?? "null");
       if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
       else if (parsed.length === 0) { if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요."); }
-      else setJobs(parsed);
+      else { setJobs(parsed); cacheWrite(ck, parsed); }
     } catch (err) {
       if (!isSilent) setError(`검색 오류: ${err.message}`);
     } finally {

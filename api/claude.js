@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
   const body = {
     model: useWebSearch ? "claude-3-5-sonnet-20241022" : "claude-sonnet-4-6",
-    max_tokens: useWebSearch ? 4000 : 2000,
+    max_tokens: useWebSearch ? 2000 : 1500,
     messages: [{ role: "user", content: prompt }],
   };
   if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
