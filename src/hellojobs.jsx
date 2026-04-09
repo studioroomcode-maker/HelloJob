@@ -1568,6 +1568,7 @@ export default function UnifiedJobAggregator() {
     const effectiveToolV      = overrides.toolV      ?? toolV;
     const effectiveRoleV      = overrides.roleV      ?? roleV;
     const effectiveIndustryG  = overrides.industryG  ?? industryG;
+    const effectiveSortBy     = overrides.sortBy     ?? sortBy;
 
     setLoading(true); setError(""); setJobs([]); setSearched(true); setResultFilter("");
 
@@ -1620,7 +1621,7 @@ export default function UnifiedJobAggregator() {
 
     const prompt = `${modeDesc}
 ${conditions}
-정렬: ${sortMap[sortBy]}
+정렬: ${sortMap[effectiveSortBy]}
 
 JSON 배열만 출력하세요. 최대 15개.
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","education":"",${extraFields}"url":"","deadline":""}]`;
@@ -2126,7 +2127,6 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                   <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                     <SelectField label="학력"    Icon={GraduationCap} value={education} onChange={setEducation} options={EDUCATION_LEVELS} th={th} />
                     {!isV && <SelectField label="업종" Icon={Factory} value={industryG} onChange={setIndustryG} options={INDUSTRIES_GENERAL} th={th} />}
-                    <SelectField label="정렬" Icon={ArrowsDownUp} value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} valueKey="value" th={th} />
                   </div>
                 </div>
               )}
@@ -2162,44 +2162,74 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
         {/* Results */}
         {jobs.length > 0 && !loading && (
           <>
+            {/* Sort pills + result filter */}
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
-              flexWrap: "wrap", gap: "10px", marginBottom: "16px",
+              flexWrap: "wrap", gap: "8px", marginBottom: "14px",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <p style={{ color: th.textM, fontSize: "12.5px", fontWeight: 600, margin: 0, fontFamily: FF }}>
-                  <span style={{ color: th.accent, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{displayJobs.length}</span>
-                  <span>개 공고</span>
-                  {displayJobs.length !== jobs.length && (
-                    <span style={{ color: th.textM }}> / 전체 {jobs.length}개</span>
-                  )}
-                </p>
+              {/* Sort tabs */}
+              <div style={{
+                display: "flex", gap: "5px", flexWrap: "wrap", alignItems: "center",
+              }}>
+                <span style={{ fontSize: "10px", color: th.textM, fontWeight: 700, fontFamily: FF, marginRight: "2px" }}>정렬</span>
+                {SORT_OPTIONS.map(opt => {
+                  const active = sortBy === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setSortBy(opt.value); searchJobs({ sortBy: opt.value }); }}
+                      className="hj-btn"
+                      style={{
+                        padding: "5px 12px", borderRadius: "99px", fontSize: "11.5px",
+                        border: `1px solid ${active ? th.accent + "44" : th.border}`,
+                        background: active ? `${th.accent}12` : th.surface,
+                        color: active ? th.accent : th.textM,
+                        fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: FF,
+                        transition: "all 0.18s cubic-bezier(0.16,1,0.3,1)",
+                        boxShadow: active ? "none" : `0 1px 3px rgba(0,0,0,0.04)`,
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
                 {hasProfile && (
                   <span style={{
                     fontSize: "10.5px", color: th.textM, fontFamily: FF,
-                    display: "flex", alignItems: "center", gap: "3px",
+                    display: "flex", alignItems: "center", gap: "3px", marginLeft: "4px",
                   }}>
                     <Robot size={10} weight="bold" color={th.accent} />
                     매칭 점수 활성
                   </span>
                 )}
               </div>
-              <div style={{
-                display: "flex", alignItems: "center", gap: "7px",
-                background: th.surfaceAlt, borderRadius: "9px",
-                padding: "6px 12px", border: `1px solid ${th.border}`,
-              }}>
-                <MagnifyingGlass size={12} color={th.textM} />
-                <input
-                  type="text"
-                  value={resultFilter}
-                  onChange={e => setResultFilter(e.target.value)}
-                  placeholder="결과 내 검색..."
+
+              {/* Right: count + result search */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <p style={{ color: th.textM, fontSize: "12px", fontWeight: 600, margin: 0, fontFamily: FF, whiteSpace: "nowrap" }}>
+                  <span style={{ color: th.accent, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{displayJobs.length}</span>
+                  <span>개</span>
+                  {displayJobs.length !== jobs.length && (
+                    <span style={{ color: th.textM }}> / {jobs.length}</span>
+                  )}
+                </p>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "7px",
+                  background: th.surfaceAlt, borderRadius: "9px",
+                  padding: "6px 12px", border: `1px solid ${th.border}`,
+                }}>
+                  <MagnifyingGlass size={12} color={th.textM} />
+                  <input
+                    type="text"
+                    value={resultFilter}
+                    onChange={e => setResultFilter(e.target.value)}
+                    placeholder="결과 내 검색..."
                   style={{
                     background: "transparent", border: "none", outline: "none",
                     color: th.textP, fontSize: "12.5px", width: "150px", fontFamily: FF,
                   }}
                 />
+              </div>
               </div>
             </div>
 
