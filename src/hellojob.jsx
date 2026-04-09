@@ -241,27 +241,18 @@ function parseJobs(text) {
 }
 
 async function callClaudeAPI(prompt, useWebSearch = false) {
-  let key = "";
-  try { key = JSON.parse(localStorage.getItem("hj_profile") || "{}").apiKey || ""; } catch {}
-  const headers = {
-    "Content-Type": "application/json",
-    "anthropic-version": "2023-06-01",
-    "anthropic-dangerous-direct-browser-access": "true",
-  };
-  if (key) headers["x-api-key"] = key;
-  if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
-  const body = {
-    model: "claude-sonnet-4-20250514",
-    max_tokens: useWebSearch ? 4000 : 2000,
-    messages: [{ role: "user", content: prompt }],
-  };
-  if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST", headers, body: JSON.stringify(body),
+  let userApiKey = "";
+  try { userApiKey = JSON.parse(localStorage.getItem("hj_profile") || "{}").apiKey || ""; } catch {}
+
+  const res = await fetch("/api/claude", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, useWebSearch, userApiKey }),
   });
+
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || `API 오류: ${res.status}`);
+    throw new Error(e.error || `API 오류: ${res.status}`);
   }
   const data = await res.json();
   let text = "";
