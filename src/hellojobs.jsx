@@ -280,7 +280,16 @@ function parseJobs(text) {
       if (Array.isArray(p)) return p.filter(j => j.title);
     } catch {}
   }
-  // 2. Outermost [...] — find first [ and last ] to handle surrounding text
+  // 2. [{ ... }] — specific to JSON array of objects, avoids [1] footnote-style false matches
+  const first2 = text.indexOf("[{");
+  const last2  = text.lastIndexOf("}]");
+  if (first2 !== -1 && last2 > first2) {
+    try {
+      const p = JSON.parse(text.slice(first2, last2 + 2));
+      if (Array.isArray(p)) return p.filter(j => j.title);
+    } catch {}
+  }
+  // 3. Outermost [...] — fallback for empty arrays and edge cases
   const first = text.indexOf("[");
   const last  = text.lastIndexOf("]");
   if (first !== -1 && last > first) {
@@ -1899,7 +1908,11 @@ export default function UnifiedJobAggregator() {
       try {
         text = await callClaudeAPI(prompt, true); // 웹검색 시도
       } catch {
-        text = await callClaudeAPI(prompt, false); // 웹검색 실패 시 폴백
+        try {
+          text = await callClaudeAPI(prompt, false); // 웹검색 실패 시 Claude 폴백
+        } catch {
+          text = await callGeminiAPI(prompt); // Claude 완전 실패 시 Gemini 폴백
+        }
       }
       const parsed = parseJobs(text);
       if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
@@ -2201,6 +2214,8 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                 <MagnifyingGlass size={15} color={th.textM} weight="bold" />
                 <input
                   ref={inputRef}
+                  id="keyword-search"
+                  name="keyword"
                   type="text"
                   value={keyword}
                   onChange={e => setKeyword(e.target.value)}
