@@ -1895,6 +1895,7 @@ export default function UnifiedJobAggregator() {
 
     const extraFields = isV ? `"role":"","tools":"",` : `"industry":"",`;
 
+    // 웹검색용 프롬프트 (실시간 검색)
     const prompt = isV
       ? `한국 영상·미디어 업계(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${kw}" 채용공고·프리랜서 의뢰를 사람인·잡코리아·원티드·LinkedIn·라임아지카페·아트잡·커뮤니티·블로그 등에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
 순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대10개. 회사모르면"미확인".
@@ -1903,15 +1904,24 @@ export default function UnifiedJobAggregator() {
 순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대10개.
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","industry":"","url":"","deadline":""}]`;
 
+    // 폴백 프롬프트 (웹검색 불가 시, 훈련 데이터 기반 생성)
+    const fallbackPrompt = isV
+      ? `한국 영상·미디어(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${kw}" 관련 채용 포지션을 JSON으로 작성하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
+순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대10개. 회사모르면"미확인".
+[{"title":"","company":"","site":"사람인","location":"서울","salary":"","type":"","experience":"",${extraFields}"url":"https://www.saramin.co.kr","deadline":""}]`
+      : `한국 "${kw}" 관련 채용 포지션을 JSON으로 작성하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
+순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대10개.
+[{"title":"","company":"","site":"사람인","location":"서울","salary":"","type":"","experience":"","industry":"","url":"https://www.saramin.co.kr","deadline":""}]`;
+
     try {
       let text;
       try {
         text = await callClaudeAPI(prompt, true); // 웹검색 시도
       } catch {
         try {
-          text = await callClaudeAPI(prompt, false); // 웹검색 실패 시 Claude 폴백
+          text = await callClaudeAPI(fallbackPrompt, false); // 웹검색 실패 → 훈련데이터 기반
         } catch {
-          text = await callGeminiAPI(prompt); // Claude 완전 실패 시 Gemini 폴백
+          text = await callGeminiAPI(fallbackPrompt); // Claude 완전 실패 시 Gemini 폴백
         }
       }
       const parsed = parseJobs(text);
