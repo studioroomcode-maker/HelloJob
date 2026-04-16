@@ -2180,7 +2180,7 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                 color: th.textP,
               }}>
                 {isV
-                  ? <><span>JH 영상·미디어</span><br /><span style={{ color: th.textS }}>채용 통합검색</span></>
+                  ? <><span>영상·미디어</span><br /><span style={{ color: th.textS }}>채용 통합검색</span></>
                   : <><span>취업공고</span><br /><span style={{ color: th.textS }}>통합검색.</span></>
                 }
               </h1>

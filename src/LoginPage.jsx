@@ -68,7 +68,7 @@ export default function LoginPage() {
           }}>
             <span style={{ fontSize: 22 }}>🎬</span>
             <span style={{ color: '#fff', fontWeight: 800, fontSize: 17, letterSpacing: '-0.3px' }}>
-              JH 영상·미디어
+              영상·미디어
             </span>
           </div>
           <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 8px' }}>
