@@ -21,8 +21,8 @@ export default function InviteCodePage({ session, onActivated }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!/^LJH\d{4}$/.test(code)) {
-      setError('코드 형식이 올바르지 않습니다. (예: LJH0001)')
+    if (!/^[A-Z0-9]{2,20}$/.test(code)) {
+      setError('코드를 확인해주세요. (영문 대문자+숫자, 2~20자)')
       return
     }
 

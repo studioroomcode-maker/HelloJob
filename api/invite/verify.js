@@ -10,8 +10,8 @@ export default async function handler(req, res) {
 
   const { code, token } = req.body
 
-  if (!code || !/^LJH\d{4}$/.test(code)) {
-    return res.status(400).json({ error: '유효하지 않은 코드 형식입니다. (예: LJH0001)' })
+  if (!code || !/^[A-Z0-9]{2,20}$/.test(code)) {
+    return res.status(400).json({ error: '유효하지 않은 코드 형식입니다.' })
   }
   if (!token) return res.status(401).json({ error: '인증이 필요합니다.' })
 
