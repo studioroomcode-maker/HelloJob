@@ -72,6 +72,7 @@ function CodesTab() {
   const [copied, setCopied] = useState(null)
   const [error, setError] = useState('')
   const [inputCode, setInputCode] = useState('')
+  const [deleting, setDeleting] = useState(null)
 
   const fetchCodes = useCallback(async () => {
     setLoading(true)
@@ -119,6 +120,27 @@ function CodesTab() {
     navigator.clipboard.writeText(`${window.location.origin}?invite=${code}`)
     setCopied(code)
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  const deleteCode = async (code) => {
+    if (!window.confirm(`"${code}" 코드를 삭제할까요?`)) return
+    setDeleting(code)
+    setError('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/invite/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json()
+      if (!res.ok) setError(data.error || '삭제 실패')
+      else await fetchCodes()
+    } catch {
+      setError('서버 연결 실패')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   const unused = codes.filter(c => !c.used).length
@@ -194,18 +216,35 @@ function CodesTab() {
                   </span>
                 )}
               </div>
-              {!c.used && (
-                <button onClick={() => copyLink(c.code)} style={{
-                  padding: '6px 12px', flexShrink: 0,
-                  background: copied === c.code ? 'rgba(80,255,120,0.12)' : 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${copied === c.code ? 'rgba(80,255,120,0.25)' : 'rgba(255,255,255,0.1)'}`,
-                  borderRadius: 8,
-                  color: copied === c.code ? '#7dff98' : '#bbb',
-                  fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                  {copied === c.code ? '복사됨!' : '링크 복사'}
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {!c.used && (
+                  <button onClick={() => copyLink(c.code)} style={{
+                    padding: '6px 12px',
+                    background: copied === c.code ? 'rgba(80,255,120,0.12)' : 'rgba(255,255,255,0.06)',
+                    border: `1px solid ${copied === c.code ? 'rgba(80,255,120,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 8,
+                    color: copied === c.code ? '#7dff98' : '#bbb',
+                    fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                    {copied === c.code ? '복사됨!' : '링크 복사'}
+                  </button>
+                )}
+                <button
+                  onClick={() => deleteCode(c.code)}
+                  disabled={deleting === c.code}
+                  style={{
+                    padding: '6px 12px',
+                    background: 'rgba(255,80,80,0.08)',
+                    border: '1px solid rgba(255,80,80,0.2)',
+                    borderRadius: 8,
+                    color: deleting === c.code ? '#555' : '#ff8080',
+                    fontSize: 12, cursor: deleting === c.code ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {deleting === c.code ? '...' : '삭제'}
                 </button>
-              )}
+              </div>
             </div>
           ))}
         </div>
