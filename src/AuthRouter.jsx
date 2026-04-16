@@ -87,11 +87,14 @@ export default function AuthRouter() {
 
   if (!session) return <LoginPage />
 
-  if (!activated) {
+  const isAdmin = session.user.email === ADMIN_EMAIL
+
+  // 관리자는 초대코드 없이 바로 입장
+  if (!activated && !isAdmin) {
     return <InviteCodePage session={session} onActivated={() => setActivated(true)} />
   }
 
-  if (showAdmin && session.user.email === ADMIN_EMAIL) {
+  if (showAdmin && isAdmin) {
     return (
       <AdminPage
         session={session}
