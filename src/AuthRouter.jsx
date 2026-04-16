@@ -106,32 +106,50 @@ export default function AuthRouter() {
   return (
     <>
       <App />
-      {isAdmin && (
+      <div style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        zIndex: 9999,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        gap: 8,
+        fontFamily: '"Apple SD Gothic Neo", sans-serif',
+      }}>
+        {isAdmin && (
+          <button
+            onClick={() => { window.location.hash = 'admin' }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '10px 18px',
+              background: 'linear-gradient(135deg, #667eea, #764ba2)',
+              border: 'none', borderRadius: 50,
+              color: '#fff', fontSize: 13, fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(102,126,234,0.45)',
+            }}
+          >
+            ⚙️ 관리자 메뉴
+          </button>
+        )}
         <button
-          onClick={() => { window.location.hash = 'admin' }}
+          onClick={() => supabase.auth.signOut()}
           style={{
-            position: 'fixed',
-            bottom: 24,
-            right: 24,
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
+            display: 'flex', alignItems: 'center', gap: 6,
             padding: '10px 18px',
-            background: 'linear-gradient(135deg, #667eea, #764ba2)',
-            border: 'none',
+            background: 'rgba(30,30,40,0.9)',
+            border: '1px solid rgba(255,255,255,0.12)',
             borderRadius: 50,
-            color: '#fff',
-            fontSize: 13,
-            fontWeight: 700,
+            color: '#aaa', fontSize: 13, fontWeight: 600,
             cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(102,126,234,0.45)',
-            fontFamily: '"Apple SD Gothic Neo", sans-serif',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
           }}
         >
-          ⚙️ 관리자 메뉴
+          로그아웃
         </button>
-      )}
+      </div>
     </>
   )
 }
