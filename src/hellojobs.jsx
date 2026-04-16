@@ -1850,17 +1850,30 @@ export default function UnifiedJobAggregator() {
 [{"title":"","company":"","site":"사람인","location":"서울","salary":"","type":"","experience":"","industry":"","url":"https://www.saramin.co.kr","deadline":""}]`;
 
     try {
-      let text;
+      let parsed = null;
+
+      // 1차: Claude 웹검색
       try {
-        text = await callClaudeAPI(prompt, true); // 웹검색 시도
-      } catch {
+        const t1 = await callClaudeAPI(prompt, true);
+        parsed = parseJobs(t1);
+      } catch {}
+
+      // 2차: Claude 일반 (웹검색 실패 or JSON 파싱 실패)
+      if (parsed === null) {
         try {
-          text = await callClaudeAPI(fallbackPrompt, false); // 웹검색 실패 → 훈련데이터 기반
-        } catch {
-          text = await callGeminiAPI(fallbackPrompt); // Claude 완전 실패 시 Gemini 폴백
-        }
+          const t2 = await callClaudeAPI(fallbackPrompt, false);
+          parsed = parseJobs(t2);
+        } catch {}
       }
-      const parsed = parseJobs(text);
+
+      // 3차: Gemini 폴백 (Claude 실패 or 파싱 실패)
+      if (parsed === null) {
+        try {
+          const t3 = await callGeminiAPI(fallbackPrompt);
+          parsed = parseJobs(t3);
+        } catch {}
+      }
+
       if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
       else if (parsed.length === 0) { if (!isSilent) setError("조건에 맞는 채용 공고를 찾지 못했습니다. 키워드를 바꿔 검색해보세요."); }
       else { setJobs(parsed); cacheWrite(ck, parsed); }
