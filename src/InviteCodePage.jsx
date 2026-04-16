@@ -1,46 +1,51 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase.js'
 
+const FF = "'Pretendard','Noto Sans KR',sans-serif"
+const BG = "#FDF8FF"
+const SURFACE = "#FFFFFF"
+const BORDER = "#E6DFF2"
+const ACCENT = "#C026D3"
+const ACCENT2 = "#9333EA"
+const TEXT = "#1A0F2E"
+const TEXTS = "#9181AA"
+
 export default function InviteCodePage({ session, onActivated }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Pre-fill code from invite link (?invite=LJH0001)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const invite = params.get('invite')
-    if (invite) setCode(invite.toUpperCase().slice(0, 7))
+    const p = new URLSearchParams(window.location.search)
+    const inv = p.get('invite')
+    if (inv) setCode(inv.toUpperCase().slice(0, 20))
   }, [])
 
   const handleChange = (e) => {
-    setCode(e.target.value.toUpperCase().slice(0, 7))
+    setCode(e.target.value.toUpperCase().slice(0, 20))
     setError('')
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
     if (!/^[A-Z0-9]{2,20}$/.test(code)) {
       setError('코드를 확인해주세요. (영문 대문자+숫자, 2~20자)')
       return
     }
-
     setLoading(true)
     setError('')
-
     try {
-      const { data: { session: current } } = await supabase.auth.getSession()
+      const { data: { session: cur } } = await supabase.auth.getSession()
       const res = await fetch('/api/invite/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, token: current?.access_token }),
+        body: JSON.stringify({ code, token: cur?.access_token }),
       })
       const data = await res.json()
       if (!res.ok) setError(data.error || '오류가 발생했습니다.')
       else onActivated()
     } catch {
-      setError('서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      setError('서버 연결에 실패했습니다.')
     } finally {
       setLoading(false)
     }
@@ -48,112 +53,87 @@ export default function InviteCodePage({ session, onActivated }) {
 
   return (
     <div style={{
-      minHeight: '100dvh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #0f1117 0%, #1a1d2e 100%)',
-      fontFamily: '"Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
-      padding: 20,
+      minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: BG, fontFamily: FF, padding: 20,
     }}>
       <div style={{
-        background: 'rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: SURFACE,
+        border: `1px solid ${BORDER}`,
         borderRadius: 24,
         padding: '48px 40px',
-        width: '100%',
-        maxWidth: 360,
+        width: '100%', maxWidth: 360,
         textAlign: 'center',
+        boxShadow: '0 8px 40px rgba(192,38,211,0.08), 0 1px 0 rgba(255,255,255,0.9) inset',
       }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🔑</div>
+        <div style={{ fontSize: 44, marginBottom: 16 }}>🔑</div>
 
-        <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 8px' }}>
+        <h1 style={{ color: TEXT, fontSize: 20, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.03em' }}>
           초대 코드 입력
         </h1>
-        <p style={{ color: '#888', fontSize: 13, margin: '0 0 8px', lineHeight: 1.5 }}>
+        <p style={{ color: TEXTS, fontSize: 13, margin: '0 0 10px' }}>
           이용하려면 초대 코드가 필요합니다
         </p>
-        <p style={{
-          color: '#a78bfa',
-          fontSize: 12,
-          margin: '0 0 28px',
-          padding: '6px 12px',
-          background: 'rgba(167,139,250,0.1)',
-          borderRadius: 8,
+        <div style={{
           display: 'inline-block',
+          color: ACCENT, fontSize: 12, fontWeight: 600,
+          padding: '4px 12px', marginBottom: 28,
+          background: `${ACCENT}10`, borderRadius: 20,
+          border: `1px solid ${ACCENT}25`,
         }}>
           {session.user.email}
-        </p>
+        </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input
             value={code}
             onChange={handleChange}
-            placeholder="LJH0001"
+            placeholder="초대 코드 입력"
             autoFocus
             style={{
-              padding: '16px',
-              background: 'rgba(255,255,255,0.08)',
-              border: `1px solid ${error ? 'rgba(255,100,100,0.4)' : 'rgba(255,255,255,0.15)'}`,
+              padding: '14px 16px',
+              background: '#FAFAFD',
+              border: `1.5px solid ${error ? '#FECDCA' : BORDER}`,
               borderRadius: 12,
-              color: '#fff',
-              fontSize: 22,
-              fontWeight: 700,
-              textAlign: 'center',
-              letterSpacing: 6,
-              outline: 'none',
-              fontFamily: 'monospace',
+              color: TEXT,
+              fontSize: 20, fontWeight: 800,
+              textAlign: 'center', letterSpacing: 4,
+              outline: 'none', fontFamily: 'monospace',
+              transition: 'border-color 0.15s',
             }}
+            onFocus={e => e.target.style.borderColor = ACCENT}
+            onBlur={e => e.target.style.borderColor = error ? '#FECDCA' : BORDER}
           />
 
           {error && (
             <div style={{
-              color: '#ff8080',
-              fontSize: 13,
-              padding: '10px 14px',
-              background: 'rgba(255,100,100,0.1)',
-              borderRadius: 8,
-              border: '1px solid rgba(255,100,100,0.2)',
+              color: '#C0392B', fontSize: 13,
+              padding: '10px 14px', background: '#FFF5F5',
+              borderRadius: 10, border: '1px solid #FECDCA',
             }}>
               {error}
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading || code.length < 7}
-            style={{
-              padding: '14px',
-              background: loading || code.length < 7
-                ? 'rgba(255,255,255,0.1)'
-                : 'linear-gradient(135deg, #667eea, #764ba2)',
-              border: 'none',
-              borderRadius: 12,
-              cursor: loading || code.length < 7 ? 'not-allowed' : 'pointer',
-              color: loading || code.length < 7 ? '#666' : '#fff',
-              fontSize: 15,
-              fontWeight: 700,
-              transition: 'all 0.2s',
-              fontFamily: 'inherit',
-            }}
-          >
+          <button type="submit" disabled={loading || code.length < 2} style={{
+            padding: '14px',
+            background: loading || code.length < 2
+              ? '#EDE9F6'
+              : `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`,
+            border: 'none', borderRadius: 12,
+            cursor: loading || code.length < 2 ? 'not-allowed' : 'pointer',
+            color: loading || code.length < 2 ? TEXTS : '#fff',
+            fontSize: 15, fontWeight: 800,
+            transition: 'all 0.2s', fontFamily: FF,
+            boxShadow: loading || code.length < 2 ? 'none' : `0 4px 16px ${ACCENT}30`,
+          }}>
             {loading ? '확인 중...' : '코드 확인'}
           </button>
         </form>
 
-        <button
-          onClick={() => supabase.auth.signOut()}
-          style={{
-            marginTop: 24,
-            background: 'none',
-            border: 'none',
-            color: '#555',
-            fontSize: 13,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
+        <button onClick={() => supabase.auth.signOut()} style={{
+          marginTop: 22, background: 'none', border: 'none',
+          color: TEXTS, fontSize: 13, cursor: 'pointer', fontFamily: FF,
+        }}>
           다른 계정으로 로그인
         </button>
       </div>

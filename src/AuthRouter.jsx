@@ -122,29 +122,30 @@ export default function AuthRouter() {
             onClick={() => { window.location.hash = 'admin' }}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '10px 18px',
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
+              padding: '9px 18px',
+              background: 'linear-gradient(135deg, #C026D3, #9333EA)',
               border: 'none', borderRadius: 50,
               color: '#fff', fontSize: 13, fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: '0 4px 20px rgba(102,126,234,0.45)',
+              boxShadow: '0 4px 16px rgba(192,38,211,0.35)',
+              fontFamily: "'Pretendard','Noto Sans KR',sans-serif",
             }}
           >
-            ⚙️ 관리자 메뉴
+            ⚙️ 관리자
           </button>
         )}
         <button
           onClick={() => supabase.auth.signOut()}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            padding: '10px 18px',
-            background: 'rgba(30,30,40,0.9)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            padding: '9px 18px',
+            background: '#FFFFFF',
+            border: '1px solid #E6DFF2',
             borderRadius: 50,
-            color: '#aaa', fontSize: 13, fontWeight: 600,
+            color: '#9181AA', fontSize: 13, fontWeight: 600,
             cursor: 'pointer',
-            backdropFilter: 'blur(10px)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+            boxShadow: '0 2px 12px rgba(192,38,211,0.08)',
+            fontFamily: "'Pretendard','Noto Sans KR',sans-serif",
           }}
         >
           로그아웃

@@ -1,54 +1,59 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase.js'
 
+const FF = "'Pretendard','Noto Sans KR',sans-serif"
+const BG = "#FDF8FF"
+const SURFACE = "#FFFFFF"
+const BORDER = "#E6DFF2"
+const BORDER_HI = "#CBBFE2"
+const ACCENT = "#C026D3"
+const ACCENT2 = "#9333EA"
+const TEXT = "#1A0F2E"
+const TEXTM = "#9181AA"
+const TEXTS = "#6B5D88"
+
 export default function AdminPage({ onBack }) {
-  const [tab, setTab] = useState('codes') // 'codes' | 'users'
+  const [tab, setTab] = useState('codes')
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      background: '#0f1117',
-      color: '#fff',
-      fontFamily: '"Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
-    }}>
+    <div style={{ minHeight: '100dvh', background: BG, fontFamily: FF, color: TEXT }}>
       {/* 헤더 */}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '20px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        display: 'flex', alignItems: 'center', gap: 16,
+        padding: '18px 28px',
+        background: SURFACE,
+        borderBottom: `1px solid ${BORDER}`,
+        boxShadow: '0 1px 8px rgba(192,38,211,0.06)',
       }}>
         <button onClick={onBack} style={{
-          background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 10,
-          color: '#ccc',
-          padding: '8px 14px',
-          cursor: 'pointer',
-          fontSize: 14,
-          fontFamily: 'inherit',
-        }}>
+          background: 'transparent',
+          border: `1px solid ${BORDER}`,
+          borderRadius: 10, color: TEXTM,
+          padding: '7px 14px', cursor: 'pointer',
+          fontSize: 13, fontWeight: 600, fontFamily: FF,
+          transition: 'all 0.15s',
+        }}
+          onMouseOver={e => { e.currentTarget.style.borderColor = BORDER_HI; e.currentTarget.style.color = TEXT }}
+          onMouseOut={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXTM }}
+        >
           ← 앱으로 돌아가기
         </button>
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>관리자 패널</h1>
 
-        {/* 탭 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>⚙️</span>
+          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: '-0.03em' }}>관리자 패널</h1>
+        </div>
+
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {[
-            { key: 'codes', label: '초대코드' },
-            { key: 'users', label: '회원 목록' },
-          ].map(t => (
+          {[{ key: 'codes', label: '초대코드' }, { key: 'users', label: '회원 목록' }].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
-              padding: '8px 16px',
-              background: tab === t.key ? 'rgba(167,139,250,0.2)' : 'transparent',
-              border: `1px solid ${tab === t.key ? 'rgba(167,139,250,0.4)' : 'rgba(255,255,255,0.08)'}`,
+              padding: '7px 16px',
+              background: tab === t.key ? `${ACCENT}12` : 'transparent',
+              border: `1px solid ${tab === t.key ? `${ACCENT}40` : BORDER}`,
               borderRadius: 8,
-              color: tab === t.key ? '#a78bfa' : '#888',
-              fontSize: 13,
-              fontWeight: tab === t.key ? 700 : 400,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
+              color: tab === t.key ? ACCENT : TEXTM,
+              fontSize: 13, fontWeight: tab === t.key ? 700 : 500,
+              cursor: 'pointer', fontFamily: FF, transition: 'all 0.15s',
             }}>
               {t.label}
             </button>
@@ -56,40 +61,33 @@ export default function AdminPage({ onBack }) {
         </div>
       </div>
 
-      {/* 컨텐츠 */}
-      <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ padding: '28px', maxWidth: 820, margin: '0 auto' }}>
         {tab === 'codes' ? <CodesTab /> : <UsersTab />}
       </div>
     </div>
   )
 }
 
-/* ───── 초대코드 탭 ───── */
+/* ─── 초대코드 탭 ─── */
 function CodesTab() {
   const [codes, setCodes] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [deleting, setDeleting] = useState(null)
   const [copied, setCopied] = useState(null)
   const [error, setError] = useState('')
   const [inputCode, setInputCode] = useState('')
-  const [deleting, setDeleting] = useState(null)
 
   const fetchCodes = useCallback(async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch('/api/invite/list', {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      })
+      const res = await fetch('/api/invite/list', { headers: { Authorization: `Bearer ${session?.access_token}` } })
       const data = await res.json()
       if (!res.ok) setError(data.error || '불러오기 실패')
       else setCodes(data.codes || [])
-    } catch {
-      setError('서버 연결 실패')
-    } finally {
-      setLoading(false)
-    }
+    } catch { setError('서버 연결 실패') }
+    finally { setLoading(false) }
   }, [])
 
   useEffect(() => { fetchCodes() }, [fetchCodes])
@@ -97,8 +95,7 @@ function CodesTab() {
   const generateCode = async (e) => {
     e.preventDefault()
     if (!inputCode.trim()) return
-    setGenerating(true)
-    setError('')
+    setGenerating(true); setError('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/invite/generate', {
@@ -109,23 +106,13 @@ function CodesTab() {
       const data = await res.json()
       if (!res.ok) setError(data.error || '생성 실패')
       else { setInputCode(''); await fetchCodes() }
-    } catch {
-      setError('서버 연결 실패')
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const copyLink = (code) => {
-    navigator.clipboard.writeText(`${window.location.origin}?invite=${code}`)
-    setCopied(code)
-    setTimeout(() => setCopied(null), 2000)
+    } catch { setError('서버 연결 실패') }
+    finally { setGenerating(false) }
   }
 
   const deleteCode = async (code) => {
     if (!window.confirm(`"${code}" 코드를 삭제할까요?`)) return
-    setDeleting(code)
-    setError('')
+    setDeleting(code); setError('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/invite/delete', {
@@ -136,114 +123,95 @@ function CodesTab() {
       const data = await res.json()
       if (!res.ok) setError(data.error || '삭제 실패')
       else await fetchCodes()
-    } catch {
-      setError('서버 연결 실패')
-    } finally {
-      setDeleting(null)
-    }
+    } catch { setError('서버 연결 실패') }
+    finally { setDeleting(null) }
+  }
+
+  const copyLink = (code) => {
+    navigator.clipboard.writeText(`${window.location.origin}?invite=${code}`)
+    setCopied(code); setTimeout(() => setCopied(null), 2000)
   }
 
   const unused = codes.filter(c => !c.used).length
 
   return (
     <>
-      {/* 코드 입력 + 생성 */}
-      <form onSubmit={generateCode} style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'stretch' }}>
+      <form onSubmit={generateCode} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input
           value={inputCode}
           onChange={e => { setInputCode(e.target.value.toUpperCase()); setError('') }}
-          placeholder="초대코드 입력 (예: LJH0001)"
+          placeholder="초대코드 입력 (예: BSK0001)"
           maxLength={20}
           style={{
-            flex: 1,
-            padding: '10px 16px',
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 10,
-            color: '#fff',
-            fontSize: 15,
-            fontWeight: 700,
-            letterSpacing: 2,
-            fontFamily: 'monospace',
-            outline: 'none',
+            flex: 1, padding: '10px 16px',
+            background: SURFACE, border: `1.5px solid ${BORDER}`,
+            borderRadius: 10, color: TEXT,
+            fontSize: 15, fontWeight: 700, letterSpacing: 2,
+            fontFamily: 'monospace', outline: 'none',
+            transition: 'border-color 0.15s',
           }}
+          onFocus={e => e.target.style.borderColor = ACCENT}
+          onBlur={e => e.target.style.borderColor = BORDER}
         />
         <button type="submit" disabled={generating || !inputCode.trim()} style={{
           padding: '10px 22px',
-          background: generating || !inputCode.trim()
-            ? 'rgba(255,255,255,0.06)'
-            : 'linear-gradient(135deg, #667eea, #764ba2)',
+          background: generating || !inputCode.trim() ? '#EDE9F6' : `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`,
           border: 'none', borderRadius: 10,
-          color: generating || !inputCode.trim() ? '#555' : '#fff',
+          color: generating || !inputCode.trim() ? TEXTM : '#fff',
           fontSize: 14, fontWeight: 700,
           cursor: generating || !inputCode.trim() ? 'not-allowed' : 'pointer',
-          fontFamily: 'inherit', whiteSpace: 'nowrap',
+          fontFamily: FF, whiteSpace: 'nowrap',
+          boxShadow: generating || !inputCode.trim() ? 'none' : `0 4px 14px ${ACCENT}28`,
         }}>
           {generating ? '생성 중...' : '+ 생성'}
         </button>
       </form>
-      <div style={{ marginBottom: 16, fontSize: 13, color: '#555' }}>
-        미사용 <strong style={{ color: '#a78bfa' }}>{unused}</strong>개 /
-        전체 <strong style={{ color: '#888' }}>{codes.length}</strong>개
+
+      <div style={{ marginBottom: 20, fontSize: 13, color: TEXTM }}>
+        미사용 <strong style={{ color: ACCENT }}>{unused}</strong>개 &nbsp;/&nbsp;
+        전체 <strong style={{ color: TEXT }}>{codes.length}</strong>개
       </div>
 
-      {error && <ErrorBox>{error}</ErrorBox>}
+      {error && <ErrBox>{error}</ErrBox>}
 
       {loading ? <Loading /> : codes.length === 0 ? (
-        <Empty>초대코드가 없습니다. 위 버튼으로 생성해보세요.</Empty>
+        <Empty>초대코드가 없습니다. 위 입력창으로 생성해보세요.</Empty>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {codes.map(c => (
             <div key={c.code} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 18px',
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.07)',
+              background: SURFACE, border: `1px solid ${BORDER}`,
               borderRadius: 12, gap: 12,
+              boxShadow: '0 1px 4px rgba(192,38,211,0.04)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
                 <span style={{
-                  fontFamily: 'monospace', fontSize: 16, fontWeight: 700, letterSpacing: 2,
-                  color: c.used ? '#555' : '#a78bfa', flexShrink: 0,
+                  fontFamily: 'monospace', fontSize: 16, fontWeight: 800, letterSpacing: 2,
+                  color: c.used ? TEXTM : ACCENT, flexShrink: 0,
                 }}>
                   {c.code}
                 </span>
-                <Badge used={c.used}>{c.used ? '사용됨' : '미사용'}</Badge>
+                <StatusBadge used={c.used}>{c.used ? '사용됨' : '미사용'}</StatusBadge>
                 {c.used && (
-                  <span style={{ fontSize: 12, color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.used_by_email && <span style={{ color: '#999' }}>{c.used_by_email}</span>}
+                  <span style={{ fontSize: 12, color: TEXTM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.used_by_email && <span style={{ color: TEXTS }}>{c.used_by_email}</span>}
                     {c.used_at && <span style={{ marginLeft: 6 }}>· {fmtDate(c.used_at)}</span>}
                   </span>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 {!c.used && (
-                  <button onClick={() => copyLink(c.code)} style={{
-                    padding: '6px 12px',
-                    background: copied === c.code ? 'rgba(80,255,120,0.12)' : 'rgba(255,255,255,0.06)',
-                    border: `1px solid ${copied === c.code ? 'rgba(80,255,120,0.25)' : 'rgba(255,255,255,0.1)'}`,
-                    borderRadius: 8,
-                    color: copied === c.code ? '#7dff98' : '#bbb',
-                    fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
-                  }}>
+                  <Btn onClick={() => copyLink(c.code)} color={copied === c.code ? '#059669' : TEXTS}
+                    bg={copied === c.code ? '#F0FDF4' : SURFACE} border={copied === c.code ? '#BBF7D0' : BORDER}>
                     {copied === c.code ? '복사됨!' : '링크 복사'}
-                  </button>
+                  </Btn>
                 )}
-                <button
-                  onClick={() => deleteCode(c.code)}
-                  disabled={deleting === c.code}
-                  style={{
-                    padding: '6px 12px',
-                    background: 'rgba(255,80,80,0.08)',
-                    border: '1px solid rgba(255,80,80,0.2)',
-                    borderRadius: 8,
-                    color: deleting === c.code ? '#555' : '#ff8080',
-                    fontSize: 12, cursor: deleting === c.code ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
+                <Btn onClick={() => deleteCode(c.code)} disabled={deleting === c.code}
+                  color="#C0392B" bg="#FFF5F5" border="#FECDCA">
                   {deleting === c.code ? '...' : '삭제'}
-                </button>
+                </Btn>
               </div>
             </div>
           ))}
@@ -253,7 +221,7 @@ function CodesTab() {
   )
 }
 
-/* ───── 회원 목록 탭 ───── */
+/* ─── 회원 목록 탭 ─── */
 function UsersTab() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -261,143 +229,130 @@ function UsersTab() {
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true)
-      setError('')
+      setLoading(true); setError('')
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        const res = await fetch('/api/admin/users', {
-          headers: { Authorization: `Bearer ${session?.access_token}` },
-        })
+        const res = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${session?.access_token}` } })
         const data = await res.json()
         if (!res.ok) setError(data.error || '불러오기 실패')
         else setUsers(data.users || [])
-      } catch {
-        setError('서버 연결 실패')
-      } finally {
-        setLoading(false)
-      }
+      } catch { setError('서버 연결 실패') }
+      finally { setLoading(false) }
     }
     load()
   }, [])
 
   const activated = users.filter(u => u.activated).length
-
-  const providerLabel = (p) => ({
-    google: '구글', kakao: '카카오', naver: '네이버', email: '이메일',
-  })[p] || p
-
-  const providerColor = (p) => ({
-    google: '#EA4335', kakao: '#FEE500', naver: '#03C75A', email: '#888',
-  })[p] || '#888'
+  const providerLabel = p => ({ google: '구글', kakao: '카카오', naver: '네이버', email: '이메일' })[p] || p
+  const providerColor = p => ({ google: '#EA4335', kakao: '#D4A000', naver: '#03C75A', email: TEXTM })[p] || TEXTM
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 20, marginBottom: 20 }}>
-        <Stat label="전체 회원" value={users.length} color="#a78bfa" />
-        <Stat label="활성 회원" value={activated} color="#7dff98" />
-        <Stat label="미활성" value={users.length - activated} color="#ff8080" />
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: '전체 회원', value: users.length, color: ACCENT },
+          { label: '활성 회원', value: activated, color: '#059669' },
+          { label: '미활성', value: users.length - activated, color: '#EF4444' },
+        ].map(s => (
+          <div key={s.label} style={{
+            flex: 1, padding: '14px 20px', textAlign: 'center',
+            background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 14,
+            boxShadow: '0 1px 4px rgba(192,38,211,0.04)',
+          }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: TEXTM, marginTop: 2, fontWeight: 500 }}>{s.label}</div>
+          </div>
+        ))}
       </div>
 
-      {error && <ErrorBox>{error}</ErrorBox>}
-
-      {loading ? <Loading /> : users.length === 0 ? (
-        <Empty>가입된 회원이 없습니다.</Empty>
-      ) : (
-        <div>
+      {error && <ErrBox>{error}</ErrBox>}
+      {loading ? <Loading /> : users.length === 0 ? <Empty>가입된 회원이 없습니다.</Empty> : (
+        <div style={{
+          background: SURFACE, border: `1px solid ${BORDER}`,
+          borderRadius: 16, overflow: 'hidden',
+          boxShadow: '0 1px 8px rgba(192,38,211,0.05)',
+        }}>
           {/* 헤더 */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 80px 100px 90px 80px',
-            gap: 12, padding: '8px 16px',
-            fontSize: 11, color: '#555', fontWeight: 600, letterSpacing: 0.5,
+            display: 'grid', gridTemplateColumns: '1fr 70px 100px 85px 70px',
+            gap: 12, padding: '10px 18px',
+            fontSize: 11, color: TEXTM, fontWeight: 700, letterSpacing: 0.5,
+            borderBottom: `1px solid ${BORDER}`, background: '#FAF7FF',
           }}>
-            <span>이메일</span>
-            <span>로그인</span>
-            <span>초대코드</span>
-            <span>가입일</span>
-            <span style={{ textAlign: 'center' }}>상태</span>
+            <span>이메일</span><span>로그인</span><span>초대코드</span><span>가입일</span><span style={{ textAlign: 'center' }}>상태</span>
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {users.map(u => (
-              <div key={u.id} style={{
-                display: 'grid', gridTemplateColumns: '1fr 80px 100px 90px 80px',
-                gap: 12, alignItems: 'center',
-                padding: '12px 16px',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 10,
-              }}>
-                <span style={{ fontSize: 13, color: '#ddd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {u.email}
-                </span>
-                <span style={{ fontSize: 12, color: providerColor(u.provider), fontWeight: 600 }}>
-                  {providerLabel(u.provider)}
-                </span>
-                <span style={{
-                  fontFamily: 'monospace', fontSize: 13, fontWeight: 700,
-                  color: u.invite_code ? '#a78bfa' : '#444',
-                  letterSpacing: 1,
-                }}>
-                  {u.invite_code || '—'}
-                </span>
-                <span style={{ fontSize: 12, color: '#666' }}>
-                  {fmtDate(u.joined_at)}
-                </span>
-                <div style={{ textAlign: 'center' }}>
-                  <Badge used={u.activated}>
-                    {u.activated ? '활성' : '미활성'}
-                  </Badge>
-                </div>
+          {users.map((u, i) => (
+            <div key={u.id} style={{
+              display: 'grid', gridTemplateColumns: '1fr 70px 100px 85px 70px',
+              gap: 12, alignItems: 'center',
+              padding: '12px 18px',
+              borderBottom: i < users.length - 1 ? `1px solid ${BORDER}` : 'none',
+              transition: 'background 0.1s',
+            }}
+              onMouseOver={e => e.currentTarget.style.background = '#FAF7FF'}
+              onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ fontSize: 13, color: TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {u.email}
+              </span>
+              <span style={{ fontSize: 12, color: providerColor(u.provider), fontWeight: 700 }}>
+                {providerLabel(u.provider)}
+              </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 800, color: u.invite_code ? ACCENT : BORDER_HI, letterSpacing: 1 }}>
+                {u.invite_code || '—'}
+              </span>
+              <span style={{ fontSize: 12, color: TEXTM }}>{fmtDate(u.joined_at)}</span>
+              <div style={{ textAlign: 'center' }}>
+                <StatusBadge used={u.activated}>{u.activated ? '활성' : '미활성'}</StatusBadge>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
     </>
   )
 }
 
-/* ───── 공용 컴포넌트 ───── */
-function Badge({ used, children }) {
+/* ─── 공용 ─── */
+function StatusBadge({ used, children }) {
   return (
     <span style={{
-      fontSize: 11, padding: '3px 8px', borderRadius: 6, flexShrink: 0,
-      background: used ? 'rgba(80,255,120,0.12)' : 'rgba(255,80,80,0.12)',
-      color: used ? '#7dff98' : '#ff8080',
+      fontSize: 11, padding: '3px 8px', borderRadius: 20, fontWeight: 700,
+      background: used ? '#F0FDF4' : '#FFF5F5',
+      color: used ? '#059669' : '#EF4444',
+      border: `1px solid ${used ? '#BBF7D0' : '#FECDCA'}`,
     }}>
       {children}
     </span>
   )
 }
 
-function Stat({ label, value, color }) {
+function Btn({ onClick, disabled, color, bg, border, children }) {
   return (
-    <div style={{
-      padding: '12px 20px',
-      background: 'rgba(255,255,255,0.03)',
-      border: '1px solid rgba(255,255,255,0.07)',
-      borderRadius: 12, textAlign: 'center',
+    <button onClick={onClick} disabled={disabled} style={{
+      padding: '6px 12px',
+      background: bg, border: `1px solid ${border}`,
+      borderRadius: 8, color, fontSize: 12, fontWeight: 600,
+      cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: FF,
+      transition: 'all 0.15s',
     }}>
-      <div style={{ fontSize: 24, fontWeight: 800, color }}>{value}</div>
-      <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{label}</div>
-    </div>
+      {children}
+    </button>
   )
 }
 
 function Loading() {
-  return <div style={{ color: '#555', textAlign: 'center', padding: 60, fontSize: 14 }}>불러오는 중...</div>
+  return <div style={{ color: TEXTM, textAlign: 'center', padding: 60, fontSize: 14 }}>불러오는 중...</div>
 }
-
 function Empty({ children }) {
-  return <div style={{ color: '#555', textAlign: 'center', padding: 60, fontSize: 14 }}>{children}</div>
+  return <div style={{ color: TEXTM, textAlign: 'center', padding: 60, fontSize: 14 }}>{children}</div>
 }
-
-function ErrorBox({ children }) {
+function ErrBox({ children }) {
   return (
     <div style={{
-      marginBottom: 16, color: '#ff8080', fontSize: 13,
-      padding: '10px 14px', background: 'rgba(255,100,100,0.1)',
-      borderRadius: 10, border: '1px solid rgba(255,100,100,0.2)',
+      marginBottom: 16, color: '#C0392B', fontSize: 13,
+      padding: '10px 14px', background: '#FFF5F5',
+      borderRadius: 10, border: '1px solid #FECDCA',
     }}>
       {children}
     </div>
@@ -406,5 +361,5 @@ function ErrorBox({ children }) {
 
 function fmtDate(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', year: '2-digit' })
+  return new Date(iso).toLocaleDateString('ko-KR', { year: '2-digit', month: 'short', day: 'numeric' })
 }
