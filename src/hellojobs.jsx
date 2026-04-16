@@ -74,15 +74,20 @@ const EXTRA_SOURCES = {
     { id: "community", label: "커뮤니티 전체",  url: "",                          note: "블로그·카페·SNS 구인 포함",    color: "#8B5CF6" },
   ],
   visual: [
-    { id: "linkedin",  label: "LinkedIn",      url: "linkedin.com/jobs",               note: "글로벌·국내 채용공고",        color: "#0A66C2" },
-    { id: "rhymage",   label: "라임아지 카페",  url: "cafe.naver.com/rhymage",         note: "영상업계 구인 (공개글)",       color: "#03C75A" },
-    { id: "artjob",    label: "아트잡",         url: "artjob.kr",                       note: "영상·디자인 전문 구인",        color: "#F97316" },
-    { id: "cgland",    label: "CG랜드",         url: "cgland.com",                      note: "CG·VFX·3D 전문 구인",         color: "#7C3AED" },
-    { id: "cglink",    label: "CG링크",         url: "cglink.net",                      note: "CG·모션·VFX 구직",            color: "#4F46E5" },
-    { id: "inven",     label: "인벤 구인",      url: "www.inven.co.kr/board/gamejob",   note: "게임업계 구인구직",            color: "#059669" },
-    { id: "kmong",     label: "크몽",           url: "kmong.com",                       note: "영상 프리랜서 의뢰",           color: "#6366F1" },
-    { id: "soomgo",    label: "숨고",           url: "soomgo.com",                      note: "영상 재능마켓",               color: "#F59E0B" },
-    { id: "community", label: "커뮤니티 전체",  url: "",                                note: "블로그·카페·SNS 구인 포함",    color: "#8B5CF6" },
+    { id: "linkedin",      label: "LinkedIn",      url: "linkedin.com/jobs",                        note: "글로벌·국내 채용공고",        color: "#0A66C2" },
+    { id: "rhymage",       label: "라임아지 카페",  url: "cafe.naver.com/rhymage",                  note: "영상업계 구인 (공개글)",       color: "#03C75A" },
+    { id: "artjob",        label: "아트잡",         url: "artjob.kr",                                note: "영상·디자인 전문 구인",        color: "#F97316" },
+    { id: "cgland",        label: "CG랜드",         url: "cgland.com",                               note: "CG·VFX·3D 전문 구인",         color: "#7C3AED" },
+    { id: "cglink",        label: "CG링크",         url: "cglink.net",                               note: "CG·모션·VFX 구직",            color: "#4F46E5" },
+    { id: "inven",         label: "인벤 구인",      url: "www.inven.co.kr/board/gamejob",            note: "게임업계 구인구직",            color: "#059669" },
+    { id: "ruliweb",       label: "루리웹 구인",    url: "bbs.ruliweb.com/community/board/300581",   note: "게임 커뮤니티 구인게시판",     color: "#EF4444" },
+    { id: "cine21",        label: "씨네21 JOB",    url: "cine21.com/community/recruit",             note: "영화업계 구인구직",            color: "#DC2626" },
+    { id: "filmmakers",    label: "필름메이커스",   url: "filmmakers.co.kr",                         note: "영화·드라마 스탭 모집",        color: "#B45309" },
+    { id: "mediajob",      label: "미디어잡",       url: "mediajob.co.kr",                           note: "방송·영상제작 전문 구인",      color: "#0284C7" },
+    { id: "notefolio",     label: "노트폴리오",     url: "notefolio.net/service/job",                note: "모션·일러스트·디자인 채용",    color: "#DB2777" },
+    { id: "kmong",         label: "크몽",           url: "kmong.com",                                note: "영상 프리랜서 의뢰",           color: "#6366F1" },
+    { id: "soomgo",        label: "숨고",           url: "soomgo.com",                               note: "영상 재능마켓",               color: "#F59E0B" },
+    { id: "community",     label: "커뮤니티 전체",  url: "",                                         note: "블로그·카페·SNS 구인 포함",    color: "#8B5CF6" },
   ],
 };
 
@@ -1836,7 +1841,7 @@ export default function UnifiedJobAggregator() {
 
     // 웹검색용 프롬프트 (실시간 검색)
     const prompt = isV
-      ? `한국 영상·미디어 업계(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${kw}" 채용공고·프리랜서 의뢰를 사람인·잡코리아·원티드·LinkedIn·라임아지카페·아트잡·CG랜드(cgland.com)·CG링크(cglink.net)·인벤구인구직·게임잡·커뮤니티·블로그 등에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
+      ? `한국 영상·미디어 업계(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${kw}" 채용공고·프리랜서 의뢰를 사람인·잡코리아·원티드·LinkedIn·라임아지카페·아트잡·CG랜드(cgland.com)·CG링크(cglink.net)·인벤구인구직·게임잡·루리웹·씨네21·필름메이커스·미디어잡·노트폴리오·커뮤니티·블로그 등에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
 순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대10개. 회사모르면"미확인".
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"",${extraFields}"url":"","deadline":""}]`
       : `한국 "${kw}" 채용공고를 사람인·잡코리아·원티드·LinkedIn·커뮤니티에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
