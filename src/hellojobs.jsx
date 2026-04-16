@@ -1836,20 +1836,20 @@ export default function UnifiedJobAggregator() {
     // 웹검색용 프롬프트 (실시간 검색)
     const prompt = isV
       ? `한국 영상·미디어 업계(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${kw}" 채용공고·프리랜서 의뢰를 사람인·잡코리아·원티드·LinkedIn·라임아지카페·아트잡·CG랜드(cgland.com)·CG링크(cglink.net)·인벤구인구직·게임잡·루리웹·씨네21·필름메이커스·미디어잡·노트폴리오·커뮤니티·블로그 등에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
-순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개. 회사모르면"미확인".
+url은 반드시 해당 공고 상세페이지 직접링크(사이트 메인URL 금지). 순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개. 회사모르면"미확인".
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"",${extraFields}"url":"","deadline":""}]`
       : `한국 "${kw}" 채용공고를 사람인·잡코리아·원티드·LinkedIn·커뮤니티에서 검색하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
-순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개.
+url은 반드시 해당 공고 상세페이지 직접링크(사이트 메인URL 금지). 순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개.
 [{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","industry":"","url":"","deadline":""}]`;
 
     // 폴백 프롬프트 (웹검색 불가 시, 훈련 데이터 기반 생성)
     const fallbackPrompt = isV
       ? `한국 영상·미디어(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${kw}" 관련 채용 포지션을 사람인·잡코리아·원티드·CG랜드·CG링크·인벤·게임잡·아트잡·라임아지카페 기준으로 JSON으로 작성하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
-순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개. 회사모르면"미확인".
-[{"title":"","company":"","site":"CG랜드","location":"서울","salary":"","type":"","experience":"",${extraFields}"url":"https://www.cgland.com","deadline":""}]`
+url은 반드시 해당 공고 상세페이지 직접링크(사이트 메인URL 금지). 순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개. 회사모르면"미확인".
+[{"title":"","company":"","site":"CG랜드","location":"서울","salary":"","type":"","experience":"",${extraFields}"url":"https://cgland.com/bbs/board.php?bo_table=job&wr_id=1234","deadline":""}]`
       : `한국 "${kw}" 관련 채용 포지션을 JSON으로 작성하라.${filters ? `\n조건: ${filters}` : ""}${effectiveSortBy !== "relevance" ? `\n정렬: ${sortMap[effectiveSortBy]}` : ""}
-순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개.
-[{"title":"","company":"","site":"사람인","location":"서울","salary":"","type":"","experience":"","industry":"","url":"https://www.saramin.co.kr","deadline":""}]`;
+url은 반드시 해당 공고 상세페이지 직접링크(사이트 메인URL 금지). 순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개.
+[{"title":"","company":"","site":"사람인","location":"서울","salary":"","type":"","experience":"","industry":"","url":"https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=12345","deadline":""}]`;
 
     try {
       let parsed = null;
