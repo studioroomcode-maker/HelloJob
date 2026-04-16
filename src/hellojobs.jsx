@@ -16,14 +16,19 @@ import {
 /*  DATA                                                       */
 /* ═══════════════════════════════════════════════════════════ */
 const SITES_GENERAL = [
-  { id: "saramin",   name: "사람인",   color: "#3B82F6" },
-  { id: "jobkorea",  name: "잡코리아",  color: "#EF4444" },
-  { id: "albamon",   name: "알바몬",   color: "#F97316" },
-  { id: "incruit",   name: "인크루트",  color: "#22C55E" },
-  { id: "wanted",    name: "원티드",   color: "#8B5CF6" },
-  { id: "catch",     name: "캐치",    color: "#EAB308" },
-  { id: "linkareer", name: "링커리어",  color: "#14B8A6" },
-  { id: "jobplanet", name: "잡플래닛",  color: "#EC4899" },
+  { id: "saramin",   name: "사람인",      color: "#3B82F6" },
+  { id: "jobkorea",  name: "잡코리아",    color: "#EF4444" },
+  { id: "albamon",   name: "알바몬",      color: "#F97316" },
+  { id: "incruit",   name: "인크루트",    color: "#22C55E" },
+  { id: "wanted",    name: "원티드",      color: "#8B5CF6" },
+  { id: "catch",     name: "캐치",        color: "#EAB308" },
+  { id: "linkareer", name: "링커리어",    color: "#14B8A6" },
+  { id: "jobplanet", name: "잡플래닛",    color: "#EC4899" },
+  { id: "linkedin",  name: "LinkedIn",   color: "#0A66C2" },
+  { id: "kmong",     name: "크몽",        color: "#6366F1" },
+  { id: "soomgo",    name: "숨고",        color: "#F59E0B" },
+  { id: "blog",      name: "네이버블로그", color: "#03C75A" },
+  { id: "community", name: "커뮤니티",    color: "#8B5CF6" },
 ];
 
 const INDUSTRIES_GENERAL = [
@@ -44,14 +49,28 @@ const INDUSTRIES_GENERAL = [
 ];
 
 const SITES_VISUAL = [
-  { id: "saramin",    name: "사람인",      color: "#F472B6" },
-  { id: "jobkorea",   name: "잡코리아",    color: "#FB7185" },
-  { id: "wanted",     name: "원티드",      color: "#A855F7" },
-  { id: "catch",      name: "캐치",       color: "#FBBF24" },
-  { id: "linkareer",  name: "링커리어",    color: "#34D399" },
-  { id: "gamejob",    name: "게임잡",     color: "#60A5FA" },
-  { id: "animationk", name: "애니메이션K", color: "#F472B6" },
-  { id: "cgworld",    name: "CG/VFX",    color: "#C084FC" },
+  { id: "saramin",     name: "사람인",      color: "#F472B6" },
+  { id: "jobkorea",    name: "잡코리아",    color: "#FB7185" },
+  { id: "wanted",      name: "원티드",      color: "#A855F7" },
+  { id: "catch",       name: "캐치",        color: "#FBBF24" },
+  { id: "linkareer",   name: "링커리어",    color: "#34D399" },
+  { id: "gamejob",     name: "게임잡",      color: "#60A5FA" },
+  { id: "animationk",  name: "애니메이션K", color: "#F472B6" },
+  { id: "cgworld",     name: "CG/VFX",     color: "#C084FC" },
+  { id: "linkedin",    name: "LinkedIn",    color: "#0A66C2" },
+  { id: "artjob",      name: "아트잡",      color: "#F97316" },
+  { id: "cgland",      name: "CG랜드",      color: "#7C3AED" },
+  { id: "cglink",      name: "CG링크",      color: "#4F46E5" },
+  { id: "inven",       name: "인벤",        color: "#059669" },
+  { id: "ruliweb",     name: "루리웹",      color: "#EF4444" },
+  { id: "cine21",      name: "씨네21",      color: "#DC2626" },
+  { id: "filmmakers",  name: "필름메이커스", color: "#B45309" },
+  { id: "mediajob",    name: "미디어잡",    color: "#0284C7" },
+  { id: "notefolio",   name: "노트폴리오",  color: "#DB2777" },
+  { id: "rhymage",     name: "라임아지",    color: "#03C75A" },
+  { id: "kmong",       name: "크몽",        color: "#6366F1" },
+  { id: "soomgo",      name: "숨고",        color: "#F59E0B" },
+  { id: "community",   name: "커뮤니티",    color: "#8B5CF6" },
 ];
 
 const VISUAL_CATEGORIES = [
@@ -65,31 +84,6 @@ const VISUAL_CATEGORIES = [
   { id: "video",     label: "영상제작",  color: "#14B8A6" },
 ];
 
-const EXTRA_SOURCES = {
-  general: [
-    { id: "linkedin",  label: "LinkedIn",      url: "linkedin.com/jobs",         note: "글로벌·국내 채용공고",        color: "#0A66C2" },
-    { id: "kmong",     label: "크몽",           url: "kmong.com",                 note: "프리랜서 의뢰 포함",          color: "#6366F1" },
-    { id: "soomgo",    label: "숨고",           url: "soomgo.com",                note: "재능마켓 의뢰",               color: "#F59E0B" },
-    { id: "blog",      label: "네이버 블로그",  url: "blog.naver.com",            note: "구인 게시글",                 color: "#03C75A" },
-    { id: "community", label: "커뮤니티 전체",  url: "",                          note: "블로그·카페·SNS 구인 포함",    color: "#8B5CF6" },
-  ],
-  visual: [
-    { id: "linkedin",      label: "LinkedIn",      url: "linkedin.com/jobs",                        note: "글로벌·국내 채용공고",        color: "#0A66C2" },
-    { id: "rhymage",       label: "라임아지 카페",  url: "cafe.naver.com/rhymage",                  note: "영상업계 구인 (공개글)",       color: "#03C75A" },
-    { id: "artjob",        label: "아트잡",         url: "artjob.kr",                                note: "영상·디자인 전문 구인",        color: "#F97316" },
-    { id: "cgland",        label: "CG랜드",         url: "cgland.com",                               note: "CG·VFX·3D 전문 구인",         color: "#7C3AED" },
-    { id: "cglink",        label: "CG링크",         url: "cglink.net",                               note: "CG·모션·VFX 구직",            color: "#4F46E5" },
-    { id: "inven",         label: "인벤 구인",      url: "www.inven.co.kr/board/gamejob",            note: "게임업계 구인구직",            color: "#059669" },
-    { id: "ruliweb",       label: "루리웹 구인",    url: "bbs.ruliweb.com/community/board/300581",   note: "게임 커뮤니티 구인게시판",     color: "#EF4444" },
-    { id: "cine21",        label: "씨네21 JOB",    url: "cine21.com/community/recruit",             note: "영화업계 구인구직",            color: "#DC2626" },
-    { id: "filmmakers",    label: "필름메이커스",   url: "filmmakers.co.kr",                         note: "영화·드라마 스탭 모집",        color: "#B45309" },
-    { id: "mediajob",      label: "미디어잡",       url: "mediajob.co.kr",                           note: "방송·영상제작 전문 구인",      color: "#0284C7" },
-    { id: "notefolio",     label: "노트폴리오",     url: "notefolio.net/service/job",                note: "모션·일러스트·디자인 채용",    color: "#DB2777" },
-    { id: "kmong",         label: "크몽",           url: "kmong.com",                                note: "영상 프리랜서 의뢰",           color: "#6366F1" },
-    { id: "soomgo",        label: "숨고",           url: "soomgo.com",                               note: "영상 재능마켓",               color: "#F59E0B" },
-    { id: "community",     label: "커뮤니티 전체",  url: "",                                         note: "블로그·카페·SNS 구인 포함",    color: "#8B5CF6" },
-  ],
-};
 
 const VISUAL_ROLES = {
   all: [{ label: "전체 직무", query: "" }],
@@ -2371,39 +2365,6 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
                       <Globe size={10} weight="bold" /> 검색 사이트
                     </p>
                     <SiteFilter sites={sites} selected={selectedSites} onToggle={toggleSite} th={th} />
-                  </div>
-
-                  {/* Always-on extra sources */}
-                  <div style={{ marginBottom: "16px" }}>
-                    <p style={{
-                      fontSize: "10px", fontWeight: 700, color: th.textM,
-                      textTransform: "uppercase", letterSpacing: "0.1em",
-                      margin: "0 0 9px", display: "flex", alignItems: "center", gap: "4px", fontFamily: FF,
-                    }}>
-                      <PhLink size={10} weight="bold" /> 추가 소스
-                      <span style={{ fontSize: "9px", fontWeight: 500, opacity: 0.55, textTransform: "none", letterSpacing: 0, marginLeft: "2px" }}>항상 포함</span>
-                    </p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
-                      {(isV ? EXTRA_SOURCES.visual : EXTRA_SOURCES.general).map(src => (
-                        <span
-                          key={src.id}
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: "5px",
-                            padding: "4px 11px", borderRadius: "99px", fontSize: "10.5px",
-                            border: `1px solid ${src.color}44`,
-                            background: `${src.color}10`,
-                            color: src.color,
-                            fontWeight: 600, fontFamily: FF,
-                          }}
-                        >
-                          <span style={{
-                            display: "inline-block", width: "5px", height: "5px", borderRadius: "50%",
-                            background: src.color, flexShrink: 0,
-                          }} />
-                          {src.label}
-                        </span>
-                      ))}
-                    </div>
                   </div>
 
                   <div style={{ height: "1px", background: th.border, margin: "4px 0 16px" }} />
