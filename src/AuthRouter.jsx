@@ -103,5 +103,35 @@ export default function AuthRouter() {
     )
   }
 
-  return <App />
+  return (
+    <>
+      <App />
+      {isAdmin && (
+        <button
+          onClick={() => { window.location.hash = 'admin' }}
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '10px 18px',
+            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+            border: 'none',
+            borderRadius: 50,
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(102,126,234,0.45)',
+            fontFamily: '"Apple SD Gothic Neo", sans-serif',
+          }}
+        >
+          ⚙️ 관리자 메뉴
+        </button>
+      )}
+    </>
+  )
 }
