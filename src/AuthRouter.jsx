@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase.js'
+import { supabase, supabaseReady } from './lib/supabase.js'
 import App from './hellojobs.jsx'
 import LoginPage from './LoginPage.jsx'
 import InviteCodePage from './InviteCodePage.jsx'
@@ -8,9 +8,36 @@ import AdminPage from './AdminPage.jsx'
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL
 
 export default function AuthRouter() {
-  const [session, setSession] = useState(undefined) // undefined = still loading
-  const [activated, setActivated] = useState(null)  // null = not checked yet
+  const [session, setSession] = useState(undefined)
+  const [activated, setActivated] = useState(null)
   const [showAdmin, setShowAdmin] = useState(false)
+
+  // Supabase 환경변수 미설정 시 안내
+  if (!supabaseReady) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: '100dvh', background: '#0f1117',
+        fontFamily: '"Apple SD Gothic Neo", sans-serif', padding: 20,
+      }}>
+        <div style={{
+          background: 'rgba(255,200,0,0.08)', border: '1px solid rgba(255,200,0,0.2)',
+          borderRadius: 16, padding: 32, maxWidth: 420, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>⚙️</div>
+          <h2 style={{ color: '#fbbf24', fontSize: 17, fontWeight: 700, margin: '0 0 12px' }}>
+            Supabase 환경변수 설정 필요
+          </h2>
+          <p style={{ color: '#888', fontSize: 13, lineHeight: 1.7, margin: 0 }}>
+            Vercel 대시보드 → Settings → Environment Variables에서<br />
+            <code style={{ color: '#fbbf24' }}>VITE_SUPABASE_URL</code>과{' '}
+            <code style={{ color: '#fbbf24' }}>VITE_SUPABASE_ANON_KEY</code>를<br />
+            추가한 후 재배포해주세요.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   // Auth state
   useEffect(() => {
@@ -34,7 +61,7 @@ export default function AuthRouter() {
     return () => window.removeEventListener('hashchange', check)
   }, [])
 
-  // Check if user is activated (has used invite code)
+  // Check activation status
   useEffect(() => {
     if (!session) { setActivated(null); return }
 
@@ -46,35 +73,24 @@ export default function AuthRouter() {
       .then(({ data }) => setActivated(data?.activated ?? false))
   }, [session])
 
-  // Loading spinner
+  // Loading
   if (session === undefined || (session && activated === null)) {
     return (
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100dvh',
-        background: '#0f1117',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: '100dvh', background: '#0f1117',
       }}>
         <div style={{ color: '#555', fontSize: 14 }}>로딩 중...</div>
       </div>
     )
   }
 
-  // Not logged in
   if (!session) return <LoginPage />
 
-  // Logged in but no invite code
   if (!activated) {
-    return (
-      <InviteCodePage
-        session={session}
-        onActivated={() => setActivated(true)}
-      />
-    )
+    return <InviteCodePage session={session} onActivated={() => setActivated(true)} />
   }
 
-  // Admin panel
   if (showAdmin && session.user.email === ADMIN_EMAIL) {
     return (
       <AdminPage
@@ -84,6 +100,5 @@ export default function AuthRouter() {
     )
   }
 
-  // Main app
   return <App />
 }
