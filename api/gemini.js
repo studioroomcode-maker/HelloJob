@@ -6,12 +6,12 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { prompt, userApiKey } = req.body;
-  const apiKey = userApiKey || process.env.GEMINI_API_KEY || "";
+  const { prompt } = req.body;
+  const apiKey = process.env.GEMINI_API_KEY || "";
 
   if (!apiKey) {
     return res.status(400).json({
-      error: "Gemini API 키가 없습니다. 프로필 설정에서 Gemini API 키를 입력하거나, Vercel 환경변수 GEMINI_API_KEY를 설정해주세요.",
+      error: "서버에 API 키가 설정되지 않았습니다. Vercel 환경변수 GEMINI_API_KEY를 설정해주세요.",
     });
   }
 

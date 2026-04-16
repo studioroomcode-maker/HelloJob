@@ -301,24 +301,9 @@ function parseJobs(text) {
   return null; // null = parse failed (distinct from [] = parsed but empty)
 }
 
-function getAIProvider() {
-  try {
-    const p = JSON.parse(localStorage.getItem("hj_profile") || "{}");
-    return {
-      provider: p.aiProvider || "claude",
-      claudeKey: p.apiKey || "",
-      geminiKey: p.geminiApiKey || "",
-    };
-  } catch {
-    return { provider: "claude", claudeKey: "", geminiKey: "" };
-  }
-}
-
 async function callClaudeAPI(prompt, useWebSearch = false) {
-  const { claudeKey } = getAIProvider();
-
   if (import.meta.env.DEV) {
-    const key = claudeKey || import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+    const key = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
     if (!key) throw new Error(".env 파일에 VITE_ANTHROPIC_API_KEY를 추가해주세요.");
     const headers = {
       "Content-Type": "application/json",
@@ -351,7 +336,7 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, useWebSearch, userApiKey: claudeKey }),
+    body: JSON.stringify({ prompt, useWebSearch }),
   });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
@@ -370,10 +355,8 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
 }
 
 async function callGeminiAPI(prompt) {
-  const { geminiKey } = getAIProvider();
-
   if (import.meta.env.DEV) {
-    const key = geminiKey || import.meta.env.VITE_GEMINI_API_KEY || "";
+    const key = import.meta.env.VITE_GEMINI_API_KEY || "";
     if (!key) throw new Error(".env 파일에 VITE_GEMINI_API_KEY를 추가해주세요.");
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
@@ -397,7 +380,7 @@ async function callGeminiAPI(prompt) {
   const res = await fetch("/api/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, userApiKey: geminiKey }),
+    body: JSON.stringify({ prompt }),
   });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
@@ -407,11 +390,8 @@ async function callGeminiAPI(prompt) {
   return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-/* 일반 AI 호출 — Gemini 키 있으면 우선 사용 (비용 절감), 없으면 Claude */
+/* 일반 AI 호출 — 서버의 ANTHROPIC_API_KEY 사용 */
 async function callAI(prompt) {
-  const { provider, geminiKey } = getAIProvider();
-  if (provider === "gemini") return callGeminiAPI(prompt);
-  if (geminiKey) return callGeminiAPI(prompt); // Gemini 키 있으면 자동 전환
   return callClaudeAPI(prompt, false);
 }
 
@@ -637,7 +617,6 @@ function ProfileModal({ profile, onSave, onClose, th }) {
     desiredRegion: "전체", jobTypes: "전체",
     strength: "", specialty: "", hobby: "", experience: "", goal: "",
     intro: "", careers: [], selfIntro: "",
-    apiKey: "", geminiApiKey: "", aiProvider: "claude",
     ...profile,
   });
   const [saved, setSaved] = useState(false);
@@ -988,63 +967,20 @@ function ProfileModal({ profile, onSave, onClose, th }) {
 
           <div style={{ height: "1px", background: th.border }} />
 
-          {/* ── AI 설정 ── */}
+          {/* ── AI 상태 ── */}
           <div>
             <div style={sectionTitle}>
               <Robot size={10} weight="bold" color={th.accent} />
-              AI 설정
+              AI 기능
             </div>
-
-            {/* Provider toggle */}
-            <div style={{ display: "flex", gap: "6px", margin: "10px 0 14px" }}>
-              {[
-                { id: "claude", label: "Claude (Anthropic)" },
-                { id: "gemini", label: "Gemini (Google)" },
-              ].map(p => {
-                const active = form.aiProvider === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => set("aiProvider", p.id)}
-                    style={{
-                      padding: "6px 14px", borderRadius: "99px",
-                      border: `1px solid ${active ? th.accent + "44" : th.border}`,
-                      background: active ? `${th.accent}12` : "transparent",
-                      color: active ? th.accent : th.textM,
-                      fontSize: "11.5px", fontWeight: active ? 700 : 500,
-                      cursor: "pointer", fontFamily: FF,
-                      transition: "all 0.18s cubic-bezier(0.16,1,0.3,1)",
-                    }}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
+            <div style={{
+              marginTop: "10px", padding: "10px 14px", borderRadius: "10px",
+              background: `${th.accent}10`, border: `1px solid ${th.accent}30`,
+              fontSize: "11.5px", color: th.textM, fontFamily: FF, lineHeight: 1.6,
+            }}>
+              <span style={{ color: th.accent, fontWeight: 700 }}>Claude AI</span>가 연결되어 있습니다.
+              채용공고 검색 · AI 분석 · 자기소개서 생성을 바로 사용하세요.
             </div>
-
-            {form.aiProvider === "claude" && (
-              <div>
-                <label style={lbl}>Claude API 키 (선택)</label>
-                <input value={form.apiKey} onChange={e => set("apiKey", e.target.value)}
-                  placeholder="sk-ant-api03-..." type="password"
-                  style={field} onFocus={focus} onBlur={blur} />
-                <div style={{ fontSize: "10.5px", color: th.textM, marginTop: "5px", fontFamily: FF }}>
-                  AI 분석 · 자기소개서 · 취업공고 검색에 필요 — console.anthropic.com
-                </div>
-              </div>
-            )}
-
-            {form.aiProvider === "gemini" && (
-              <div>
-                <label style={lbl}>Gemini API 키 (선택)</label>
-                <input value={form.geminiApiKey} onChange={e => set("geminiApiKey", e.target.value)}
-                  placeholder="AIza..." type="password"
-                  style={field} onFocus={focus} onBlur={blur} />
-                <div style={{ fontSize: "10.5px", color: th.textM, marginTop: "5px", fontFamily: FF }}>
-                  AI 분석 · 자기소개서에 사용 (취업공고 검색은 Claude 필요) — aistudio.google.com
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Save */}
