@@ -71,6 +71,7 @@ function CodesTab() {
   const [generating, setGenerating] = useState(false)
   const [copied, setCopied] = useState(null)
   const [error, setError] = useState('')
+  const [inputCode, setInputCode] = useState('')
 
   const fetchCodes = useCallback(async () => {
     setLoading(true)
@@ -92,7 +93,9 @@ function CodesTab() {
 
   useEffect(() => { fetchCodes() }, [fetchCodes])
 
-  const generateCode = async () => {
+  const generateCode = async (e) => {
+    e.preventDefault()
+    if (!inputCode.trim()) return
     setGenerating(true)
     setError('')
     try {
@@ -100,11 +103,11 @@ function CodesTab() {
       const res = await fetch('/api/invite/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ code: inputCode.trim() }),
       })
       const data = await res.json()
       if (!res.ok) setError(data.error || '생성 실패')
-      else await fetchCodes()
+      else { setInputCode(''); await fetchCodes() }
     } catch {
       setError('서버 연결 실패')
     } finally {
@@ -122,22 +125,44 @@ function CodesTab() {
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-        <button onClick={generateCode} disabled={generating} style={{
+      {/* 코드 입력 + 생성 */}
+      <form onSubmit={generateCode} style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'stretch' }}>
+        <input
+          value={inputCode}
+          onChange={e => { setInputCode(e.target.value.toUpperCase()); setError('') }}
+          placeholder="초대코드 입력 (예: LJH0001)"
+          maxLength={20}
+          style={{
+            flex: 1,
+            padding: '10px 16px',
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10,
+            color: '#fff',
+            fontSize: 15,
+            fontWeight: 700,
+            letterSpacing: 2,
+            fontFamily: 'monospace',
+            outline: 'none',
+          }}
+        />
+        <button type="submit" disabled={generating || !inputCode.trim()} style={{
           padding: '10px 22px',
-          background: generating ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg, #667eea, #764ba2)',
+          background: generating || !inputCode.trim()
+            ? 'rgba(255,255,255,0.06)'
+            : 'linear-gradient(135deg, #667eea, #764ba2)',
           border: 'none', borderRadius: 10,
-          color: generating ? '#666' : '#fff',
+          color: generating || !inputCode.trim() ? '#555' : '#fff',
           fontSize: 14, fontWeight: 700,
-          cursor: generating ? 'not-allowed' : 'pointer',
-          fontFamily: 'inherit',
+          cursor: generating || !inputCode.trim() ? 'not-allowed' : 'pointer',
+          fontFamily: 'inherit', whiteSpace: 'nowrap',
         }}>
-          {generating ? '생성 중...' : '+ 새 초대코드 생성'}
+          {generating ? '생성 중...' : '+ 생성'}
         </button>
-        <span style={{ fontSize: 13, color: '#666' }}>
-          미사용 <strong style={{ color: '#a78bfa' }}>{unused}</strong>개 /
-          전체 <strong style={{ color: '#ccc' }}>{codes.length}</strong>개
-        </span>
+      </form>
+      <div style={{ marginBottom: 16, fontSize: 13, color: '#555' }}>
+        미사용 <strong style={{ color: '#a78bfa' }}>{unused}</strong>개 /
+        전체 <strong style={{ color: '#888' }}>{codes.length}</strong>개
       </div>
 
       {error && <ErrorBox>{error}</ErrorBox>}
