@@ -24,7 +24,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: "You are a job search API. Respond ONLY with a valid JSON array. No explanations, no markdown, no text outside the JSON array. Start with [ and end with ]." }] },
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 2000 },
+          generationConfig: { maxOutputTokens: 4000 },
         }),
       }
     );

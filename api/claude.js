@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
   const body = {
     model: "claude-sonnet-4-6",
-    max_tokens: useWebSearch ? 4000 : 2000,
+    max_tokens: useWebSearch ? 8000 : 4000,
     system: "You are a job search API. Respond ONLY with a valid JSON array. No explanations, no markdown, no text outside the JSON array. Start with [ and end with ].",
     messages: [{ role: "user", content: prompt }],
   };
