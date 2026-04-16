@@ -1895,6 +1895,55 @@ export default function UnifiedJobAggregator() {
     }
   };
 
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadMoreJobs = async () => {
+    if (!keyword.trim() || loadingMore || loading) return;
+    setLoadingMore(true);
+
+    const excludeStr = jobs.length > 0
+      ? `\n이미 찾은 공고는 중복 제외(제목 기준): ${jobs.map(j => j.title).slice(0, 20).join(" / ")}`
+      : "";
+
+    const extraFields = isV ? `"role":"","tools":"",` : `"industry":"",`;
+    const sortMap = { recent:"최신순", salary_desc:"연봉높은순", deadline:"마감임박순", relevance:"관련도순" };
+
+    const morePrompt = isV
+      ? `한국 영상·미디어 업계(애니메이션/영화/방송/게임/모션그래픽/웹툰) "${keyword}" 채용공고·프리랜서 의뢰를 사람인·잡코리아·원티드·LinkedIn·라임아지카페·아트잡·CG랜드·CG링크·인벤구인구직·게임잡·루리웹·씨네21·필름메이커스·미디어잡·노트폴리오·커뮤니티·블로그 등에서 추가로 검색하라.${excludeStr}
+순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개. 회사모르면"미확인".
+[{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"",${extraFields}"url":"","deadline":""}]`
+      : `한국 "${keyword}" 채용공고를 사람인·잡코리아·원티드·LinkedIn·커뮤니티에서 추가로 검색하라.${excludeStr}
+순수JSON배열만출력(설명없이[로시작]로끝). 없으면[]. 최대25개.
+[{"title":"","company":"","site":"","location":"","salary":"","type":"","experience":"","industry":"","url":"","deadline":""}]`;
+
+    try {
+      let parsed = null;
+      try {
+        const t1 = await callClaudeAPI(morePrompt, true);
+        parsed = parseJobs(t1);
+      } catch {}
+      if (parsed === null) {
+        try {
+          const t2 = await callClaudeAPI(morePrompt, false);
+          parsed = parseJobs(t2);
+        } catch {}
+      }
+      if (parsed === null) {
+        try {
+          const t3 = await callGeminiAPI(morePrompt);
+          parsed = parseJobs(t3);
+        } catch {}
+      }
+      if (parsed && parsed.length > 0) {
+        const existingTitles = new Set(jobs.map(j => j.title));
+        const newJobs = parsed.filter(j => !existingTitles.has(j.title));
+        if (newJobs.length > 0) setJobs(prev => [...prev, ...newJobs]);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const parseNLQuery = async nlText => {
     const prompt = `다음 취업 검색 문장을 JSON으로 변환하세요.
 입력: "${nlText}"
@@ -2524,6 +2573,41 @@ JSON만 응답: {"keyword":"...","region":"..."}`;
             {displayJobs.length === 0 && (
               <div style={{ textAlign: "center", padding: "48px 20px", color: th.textM, fontSize: "13.5px", fontFamily: FF }}>
                 결과 내 검색에 일치하는 공고가 없습니다
+              </div>
+            )}
+
+            {/* 더 보기 버튼 */}
+            {jobs.length > 0 && !resultFilter && (
+              <div style={{ display: "flex", justifyContent: "center", marginTop: "24px" }}>
+                <button
+                  onClick={loadMoreJobs}
+                  disabled={loadingMore}
+                  className="hj-btn"
+                  style={{
+                    padding: "12px 32px", borderRadius: "12px",
+                    border: `1px solid ${th.border}`,
+                    background: loadingMore ? th.surface : "transparent",
+                    color: loadingMore ? th.textM : th.textP,
+                    fontSize: "13.5px", fontWeight: 600,
+                    cursor: loadingMore ? "not-allowed" : "pointer",
+                    fontFamily: FF,
+                    display: "flex", alignItems: "center", gap: "8px",
+                    transition: "all 0.18s",
+                  }}
+                >
+                  {loadingMore ? (
+                    <>
+                      <span style={{
+                        width: "14px", height: "14px", border: `2px solid ${th.textM}`,
+                        borderTopColor: "transparent", borderRadius: "50%",
+                        display: "inline-block", animation: "hj-spin 0.7s linear infinite",
+                      }} />
+                      추가 검색 중...
+                    </>
+                  ) : (
+                    <>+ 더 보기 ({jobs.length}개 로드됨)</>
+                  )}
+                </button>
               </div>
             )}
           </>
