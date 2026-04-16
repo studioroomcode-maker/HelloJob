@@ -1856,14 +1856,16 @@ export default function UnifiedJobAggregator() {
       try {
         const t1 = await callClaudeAPI(prompt, true);
         parsed = parseJobs(t1);
-      } catch {}
+        if (parsed === null) console.error("[1차 웹검색] 파싱 실패. 응답:", t1?.slice(0, 300));
+      } catch (e) { console.error("[1차 웹검색] API 에러:", e.message); }
 
       // 2차: Claude 일반 (웹검색 실패 or JSON 파싱 실패)
       if (parsed === null) {
         try {
           const t2 = await callClaudeAPI(fallbackPrompt, false);
           parsed = parseJobs(t2);
-        } catch {}
+          if (parsed === null) console.error("[2차 Claude일반] 파싱 실패. 응답:", t2?.slice(0, 300));
+        } catch (e) { console.error("[2차 Claude일반] API 에러:", e.message); }
       }
 
       // 3차: Gemini 폴백 (Claude 실패 or 파싱 실패)
@@ -1871,7 +1873,8 @@ export default function UnifiedJobAggregator() {
         try {
           const t3 = await callGeminiAPI(fallbackPrompt);
           parsed = parseJobs(t3);
-        } catch {}
+          if (parsed === null) console.error("[3차 Gemini] 파싱 실패. 응답:", t3?.slice(0, 300));
+        } catch (e) { console.error("[3차 Gemini] API 에러:", e.message); }
       }
 
       if (parsed === null) { if (!isSilent) setError("검색 결과를 파싱할 수 없습니다. 잠시 후 다시 시도해보세요."); }
