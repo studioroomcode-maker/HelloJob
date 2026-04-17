@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
   const body = {
     model: "claude-sonnet-4-6",
-    max_tokens: useWebSearch ? 4000 : 4000,
+    max_tokens: useWebSearch ? 4000 : 8000,
     system: "You are a job search API. Respond ONLY with a valid JSON array. No explanations, no markdown, no text outside the JSON array. Start with [ and end with ]. CRITICAL: The 'url' field must be the direct URL to the specific job posting detail page (e.g. https://www.saramin.co.kr/zf_user/jobs/relay/view?rec_idx=12345). Never use a site's main/home URL. If you cannot find the exact posting URL, construct the most specific search URL possible.",
     messages: [{ role: "user", content: prompt }],
   };

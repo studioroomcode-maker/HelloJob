@@ -275,49 +275,68 @@ function cacheWrite(key, data) {
 function parseJobs(text) {
   if (!text) return null;
 
-  // 헬퍼: 파싱된 값을 배열로 정규화
   const toArr = (v) => {
     if (Array.isArray(v)) return v.filter(j => j.title);
-    if (v && typeof v === 'object' && v.title) return [v]; // 단일 객체
+    if (v && typeof v === 'object' && v.title) return [v];
     return null;
   };
 
-  // 1. Code block: ```json [...] ``` or ``` [...] ``` (배열 or 단일 객체)
-  const block = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (block) {
-    try {
-      const r = toArr(JSON.parse(block[1]));
-      if (r) return r;
-    } catch {}
+  // 잘린 JSON 복구 포함 파싱 시도
+  const tryParse = (s) => {
+    const t = (s || '').trim();
+    if (!t) return null;
+    try { return JSON.parse(t); } catch {}
+    // 배열이 잘린 경우: 마지막 완전한 객체 뒤에서 닫기
+    if (t.startsWith('[')) {
+      const lastComma = t.lastIndexOf('},');
+      if (lastComma > 0) { try { return JSON.parse(t.slice(0, lastComma + 1) + ']'); } catch {} }
+      const lastClose = t.lastIndexOf('}');
+      if (lastClose > 0) { try { return JSON.parse(t.slice(0, lastClose + 1) + ']'); } catch {} }
+    }
+    return null;
+  };
+
+  // 1. 코드블록 내용 — 닫는 ``` 없어도 처리 (잘린 응답 대비)
+  const codeStart = text.search(/```(?:json)?/);
+  if (codeStart !== -1) {
+    const afterTag = text.slice(codeStart).replace(/^```(?:json)?[ \t]*\r?\n?/, '');
+    const closeIdx = afterTag.indexOf('```');
+    const content = (closeIdx !== -1 ? afterTag.slice(0, closeIdx) : afterTag).trim();
+    const r = toArr(tryParse(content));
+    if (r !== null) return r;
   }
-  // 2. [{ ... }] — JSON array of objects
-  const first2 = text.indexOf("[{");
-  const last2  = text.lastIndexOf("}]");
-  if (first2 !== -1 && last2 > first2) {
-    try {
-      const r = toArr(JSON.parse(text.slice(first2, last2 + 2)));
-      if (r) return r;
-    } catch {}
+
+  // 2. [{ }] 배열
+  const a1 = text.indexOf('[{');
+  const a2 = text.lastIndexOf('}]');
+  if (a1 !== -1 && a2 > a1) {
+    const r = toArr(tryParse(text.slice(a1, a2 + 2)));
+    if (r !== null) return r;
   }
-  // 3. 단일 객체 { ... }
-  const fo = text.indexOf("{");
-  const lo = text.lastIndexOf("}");
-  if (fo !== -1 && lo > fo) {
-    try {
-      const r = toArr(JSON.parse(text.slice(fo, lo + 1)));
-      if (r) return r;
-    } catch {}
+
+  // 3. [ ] 배열 (공백 포함 — [ \n { 형태)
+  const b1 = text.indexOf('[');
+  const b2 = text.lastIndexOf(']');
+  if (b1 !== -1 && b2 > b1) {
+    const r = toArr(tryParse(text.slice(b1, b2 + 1)));
+    if (r !== null) return r;
   }
-  // 4. Outermost [...] — fallback for empty arrays
-  const first = text.indexOf("[");
-  const last  = text.lastIndexOf("]");
-  if (first !== -1 && last > first) {
-    try {
-      const r = toArr(JSON.parse(text.slice(first, last + 1)));
-      if (r) return r;
-    } catch {}
+
+  // 4. 잘린 배열 복구: [ 이후 전체 시도
+  if (b1 !== -1) {
+    const r = toArr(tryParse(text.slice(b1)));
+    if (r !== null) return r;
   }
-  return null; // null = parse failed (distinct from [] = parsed but empty)
+
+  // 5. { } 단일 객체
+  const c1 = text.indexOf('{');
+  const c2 = text.lastIndexOf('}');
+  if (c1 !== -1 && c2 > c1) {
+    const r = toArr(tryParse(text.slice(c1, c2 + 1)));
+    if (r !== null) return r;
+  }
+
+  return null;
 }
 
 async function callClaudeAPI(prompt, useWebSearch = false) {
