@@ -340,8 +340,10 @@ function parseJobs(text) {
 }
 
 async function callClaudeAPI(prompt, useWebSearch = false) {
-  if (import.meta.env.DEV) {
-    const key = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+  // VITE_ANTHROPIC_API_KEY가 있으면 브라우저에서 직접 호출 (Vercel 타임아웃 우회)
+  const viteKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+  if (import.meta.env.DEV || viteKey) {
+    const key = viteKey || "";
     if (!key) throw new Error(".env 파일에 VITE_ANTHROPIC_API_KEY를 추가해주세요.");
     const headers = {
       "Content-Type": "application/json",
@@ -352,25 +354,27 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
     const body = {
       model: "claude-sonnet-4-6",
-      max_tokens: useWebSearch ? 2000 : 1500,
+      max_tokens: useWebSearch ? 8000 : 8000,
+      system: "You are a job search API. Respond ONLY with a valid JSON array. No explanations, no markdown, no text outside the JSON array. Start with [ and end with ]. CRITICAL: The 'url' field must be the direct URL to the specific job posting detail page. Never use a site's main/home URL.",
       messages: [{ role: "user", content: prompt }],
     };
     if (useWebSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
-    const devRes = await fetch("https://api.anthropic.com/v1/messages", {
+    const directRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers, body: JSON.stringify(body),
     });
-    if (!devRes.ok) {
-      const e = await devRes.json().catch(() => ({}));
-      throw new Error(e.error?.message || `API 오류: ${devRes.status}`);
+    if (!directRes.ok) {
+      const e = await directRes.json().catch(() => ({}));
+      throw new Error(e.error?.message || `API 오류: ${directRes.status}`);
     }
-    const devData = await devRes.json();
-    if (!devData.content) throw new Error(devData.error?.message || "응답 오류");
-    let devText = "";
-    for (const b of devData.content) if (b.type === "text") devText += b.text;
-    if (!devText) throw new Error("AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.");
-    return devText;
+    const directData = await directRes.json();
+    if (!directData.content) throw new Error(directData.error?.message || "응답 오류");
+    let directText = "";
+    for (const b of directData.content) if (b.type === "text") directText += b.text;
+    if (!directText) throw new Error("AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.");
+    return directText;
   }
 
+  // VITE_ANTHROPIC_API_KEY 미설정 시 서버 프록시 (Hobby 플랜에서 웹검색 504 가능)
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
