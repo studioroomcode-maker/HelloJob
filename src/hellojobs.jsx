@@ -274,30 +274,47 @@ function cacheWrite(key, data) {
 /* ═══════════════════════════════════════════════════════════ */
 function parseJobs(text) {
   if (!text) return null;
-  // 1. Code block: ```json [...] ``` or ``` [...] ```
-  const block = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+
+  // 헬퍼: 파싱된 값을 배열로 정규화
+  const toArr = (v) => {
+    if (Array.isArray(v)) return v.filter(j => j.title);
+    if (v && typeof v === 'object' && v.title) return [v]; // 단일 객체
+    return null;
+  };
+
+  // 1. Code block: ```json [...] ``` or ``` [...] ``` (배열 or 단일 객체)
+  const block = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (block) {
     try {
-      const p = JSON.parse(block[1]);
-      if (Array.isArray(p)) return p.filter(j => j.title);
+      const r = toArr(JSON.parse(block[1]));
+      if (r) return r;
     } catch {}
   }
-  // 2. [{ ... }] — specific to JSON array of objects, avoids [1] footnote-style false matches
+  // 2. [{ ... }] — JSON array of objects
   const first2 = text.indexOf("[{");
   const last2  = text.lastIndexOf("}]");
   if (first2 !== -1 && last2 > first2) {
     try {
-      const p = JSON.parse(text.slice(first2, last2 + 2));
-      if (Array.isArray(p)) return p.filter(j => j.title);
+      const r = toArr(JSON.parse(text.slice(first2, last2 + 2)));
+      if (r) return r;
     } catch {}
   }
-  // 3. Outermost [...] — fallback for empty arrays and edge cases
+  // 3. 단일 객체 { ... }
+  const fo = text.indexOf("{");
+  const lo = text.lastIndexOf("}");
+  if (fo !== -1 && lo > fo) {
+    try {
+      const r = toArr(JSON.parse(text.slice(fo, lo + 1)));
+      if (r) return r;
+    } catch {}
+  }
+  // 4. Outermost [...] — fallback for empty arrays
   const first = text.indexOf("[");
   const last  = text.lastIndexOf("]");
   if (first !== -1 && last > first) {
     try {
-      const p = JSON.parse(text.slice(first, last + 1));
-      if (Array.isArray(p)) return p.filter(j => j.title);
+      const r = toArr(JSON.parse(text.slice(first, last + 1)));
+      if (r) return r;
     } catch {}
   }
   return null; // null = parse failed (distinct from [] = parsed but empty)
