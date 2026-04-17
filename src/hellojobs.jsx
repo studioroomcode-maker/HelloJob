@@ -253,8 +253,9 @@ const FILTER_ICON_MAP = {
 /*  SEARCH CACHE (30-min localStorage TTL)                    */
 /* ═══════════════════════════════════════════════════════════ */
 const CACHE_TTL = 30 * 60 * 1000;
+const CACHE_VER = "v2"; // 버전 올리면 이전 캐시 전체 무효화
 function cacheKey(params) {
-  return "hj_sc_" + Object.values(params).join("|").replace(/\s+/g, "_").slice(0, 120);
+  return `hj_sc_${CACHE_VER}_` + Object.values(params).join("|").replace(/\s+/g, "_").slice(0, 120);
 }
 function cacheRead(key) {
   try {
