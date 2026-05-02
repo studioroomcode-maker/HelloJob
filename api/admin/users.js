@@ -33,8 +33,38 @@ export default async function handler(req, res) {
   const profileMap = {}
   profiles?.forEach(p => { profileMap[p.id] = p })
 
+  // API 사용량 집계
+  const { data: usage } = await supabase
+    .from('api_usage')
+    .select('user_id, provider, input_tokens, output_tokens, cost_usd, created_at')
+
+  const usageMap = {}
+  usage?.forEach(u => {
+    const key = u.user_id
+    if (!key) return
+    if (!usageMap[key]) {
+      usageMap[key] = {
+        calls: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0,
+        claude_calls: 0, gemini_calls: 0,
+        last_used_at: null,
+      }
+    }
+    const m = usageMap[key]
+    m.calls += 1
+    m.input_tokens += u.input_tokens || 0
+    m.output_tokens += u.output_tokens || 0
+    m.cost_usd += Number(u.cost_usd) || 0
+    if (u.provider === 'claude') m.claude_calls += 1
+    if (u.provider === 'gemini') m.gemini_calls += 1
+    if (!m.last_used_at || u.created_at > m.last_used_at) m.last_used_at = u.created_at
+  })
+
   const users = (authUsers?.users || []).map(u => {
     const profile = profileMap[u.id] || {}
+    const usg = usageMap[u.id] || {
+      calls: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0,
+      claude_calls: 0, gemini_calls: 0, last_used_at: null,
+    }
     return {
       id: u.id,
       email: u.email,
@@ -42,6 +72,16 @@ export default async function handler(req, res) {
       activated: profile.activated ?? false,
       invite_code: profile.invite_code || null,
       joined_at: u.created_at,
+      usage: {
+        calls: usg.calls,
+        claude_calls: usg.claude_calls,
+        gemini_calls: usg.gemini_calls,
+        input_tokens: usg.input_tokens,
+        output_tokens: usg.output_tokens,
+        total_tokens: usg.input_tokens + usg.output_tokens,
+        cost_usd: Number(usg.cost_usd.toFixed(6)),
+        last_used_at: usg.last_used_at,
+      },
     }
   }).sort((a, b) => new Date(b.joined_at) - new Date(a.joined_at))
 

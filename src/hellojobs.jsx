@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import logoDark  from "./assets/logo-dark.png";
 import logoWhite from "./assets/logo-white.png";
+import { supabase } from "./lib/supabase.js";
 import {
   MagnifyingGlass, Briefcase, FilmSlate, MapPin, CurrencyDollar,
   FileText, Star, GraduationCap, Palette, Monitor, Factory,
@@ -340,6 +341,25 @@ function parseJobs(text) {
   return null;
 }
 
+async function getAuthHeader() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  } catch { return {}; }
+}
+
+async function reportUsage({ provider, model, inputTokens, outputTokens, webSearch }) {
+  try {
+    const auth = await getAuthHeader();
+    if (!auth.Authorization) return;
+    await fetch("/api/usage/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...auth },
+      body: JSON.stringify({ provider, model, inputTokens, outputTokens, webSearch: !!webSearch }),
+    });
+  } catch { /* 사용량 기록 실패는 무시 */ }
+}
+
 async function callClaudeAPI(prompt, useWebSearch = false) {
   // VITE_ANTHROPIC_API_KEY가 있으면 브라우저에서 직접 호출 (Vercel 타임아웃 우회)
   const viteKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
@@ -353,8 +373,9 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
       "anthropic-dangerous-direct-browser-access": "true",
     };
     if (useWebSearch) headers["anthropic-beta"] = "web-search-2025-03-05";
+    const model = "claude-sonnet-4-6";
     const body = {
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: useWebSearch ? 8000 : 8000,
       system: "You are a job search API. Respond ONLY with a valid JSON array. No explanations, no markdown, no text outside the JSON array. Start with [ and end with ]. CRITICAL: The 'url' field must be the direct URL to the specific job posting detail page. Never use a site's main/home URL.",
       messages: [{ role: "user", content: prompt }],
@@ -372,13 +393,23 @@ async function callClaudeAPI(prompt, useWebSearch = false) {
     let directText = "";
     for (const b of directData.content) if (b.type === "text") directText += b.text;
     if (!directText) throw new Error("AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.");
+    if (directData.usage) {
+      reportUsage({
+        provider: 'claude',
+        model: directData.model || model,
+        inputTokens: directData.usage.input_tokens || 0,
+        outputTokens: directData.usage.output_tokens || 0,
+        webSearch: useWebSearch,
+      });
+    }
     return directText;
   }
 
   // VITE_ANTHROPIC_API_KEY 미설정 시 서버 프록시 (Hobby 플랜에서 웹검색 504 가능)
+  const auth = await getAuthHeader();
   const res = await fetch("/api/claude", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...auth },
     body: JSON.stringify({ prompt, useWebSearch }),
   });
   if (!res.ok) {
@@ -401,8 +432,9 @@ async function callGeminiAPI(prompt) {
   if (import.meta.env.DEV) {
     const key = import.meta.env.VITE_GEMINI_API_KEY || "";
     if (!key) throw new Error(".env 파일에 VITE_GEMINI_API_KEY를 추가해주세요.");
+    const model = "gemini-2.0-flash";
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -417,12 +449,22 @@ async function callGeminiAPI(prompt) {
       throw new Error(e.error?.message || `Gemini API 오류: ${res.status}`);
     }
     const d = await res.json();
+    if (d.usageMetadata) {
+      reportUsage({
+        provider: 'gemini',
+        model,
+        inputTokens: d.usageMetadata.promptTokenCount || 0,
+        outputTokens: d.usageMetadata.candidatesTokenCount || 0,
+        webSearch: false,
+      });
+    }
     return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
   }
 
+  const auth = await getAuthHeader();
   const res = await fetch("/api/gemini", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...auth },
     body: JSON.stringify({ prompt }),
   });
   if (!res.ok) {

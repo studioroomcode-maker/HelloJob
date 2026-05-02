@@ -45,7 +45,7 @@ export default function AdminPage({ onBack }) {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {[{ key: 'codes', label: '초대코드' }, { key: 'users', label: '회원 목록' }].map(t => (
+          {[{ key: 'codes', label: '초대코드' }, { key: 'users', label: '회원 목록' }, { key: 'usage', label: 'API 사용량' }].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
               padding: '7px 16px',
               background: tab === t.key ? `${ACCENT}12` : 'transparent',
@@ -61,8 +61,8 @@ export default function AdminPage({ onBack }) {
         </div>
       </div>
 
-      <div style={{ padding: '28px', maxWidth: 820, margin: '0 auto' }}>
-        {tab === 'codes' ? <CodesTab /> : <UsersTab />}
+      <div style={{ padding: '28px', maxWidth: tab === 'usage' ? 1080 : 820, margin: '0 auto' }}>
+        {tab === 'codes' ? <CodesTab /> : tab === 'users' ? <UsersTab /> : <UsageTab />}
       </div>
     </div>
   )
@@ -313,6 +313,166 @@ function UsersTab() {
   )
 }
 
+/* ─── API 사용량 탭 ─── */
+function UsageTab() {
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [sortBy, setSortBy] = useState('cost') // 'cost' | 'calls' | 'tokens' | 'recent'
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true); setError('')
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const res = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${session?.access_token}` } })
+        const data = await res.json()
+        if (!res.ok) setError(data.error || '불러오기 실패')
+        else setUsers(data.users || [])
+      } catch { setError('서버 연결 실패') }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [])
+
+  const totals = users.reduce((acc, u) => {
+    const x = u.usage || {}
+    acc.calls += x.calls || 0
+    acc.tokens += x.total_tokens || 0
+    acc.cost += x.cost_usd || 0
+    return acc
+  }, { calls: 0, tokens: 0, cost: 0 })
+
+  const activeUsers = users.filter(u => (u.usage?.calls || 0) > 0)
+
+  const sorted = [...users].sort((a, b) => {
+    const A = a.usage || {}, B = b.usage || {}
+    if (sortBy === 'calls')  return (B.calls || 0)        - (A.calls || 0)
+    if (sortBy === 'tokens') return (B.total_tokens || 0) - (A.total_tokens || 0)
+    if (sortBy === 'recent') return new Date(B.last_used_at || 0) - new Date(A.last_used_at || 0)
+    return (B.cost_usd || 0) - (A.cost_usd || 0) // default: cost
+  })
+
+  const fmtNum = (n) => (n || 0).toLocaleString('ko-KR')
+  const fmtCost = (n) => `$${(n || 0).toFixed(4)}`
+  const fmtKRW = (usd) => `₩${Math.round((usd || 0) * 1380).toLocaleString('ko-KR')}`
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: '총 호출 수', value: fmtNum(totals.calls), color: ACCENT },
+          { label: '총 토큰', value: fmtNum(totals.tokens), color: ACCENT2 },
+          { label: '총 비용 (USD)', value: fmtCost(totals.cost), color: '#059669' },
+          { label: '총 비용 (원)', value: fmtKRW(totals.cost), color: '#0EA5E9' },
+          { label: '활성 사용자', value: `${activeUsers.length} / ${users.length}`, color: TEXT },
+        ].map(s => (
+          <div key={s.label} style={{
+            flex: 1, padding: '14px 18px', textAlign: 'center',
+            background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 14,
+            boxShadow: '0 1px 4px rgba(192,38,211,0.04)',
+          }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: TEXTM, marginTop: 2, fontWeight: 500 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: TEXTM, marginRight: 4 }}>정렬:</span>
+        {[
+          { key: 'cost',   label: '비용순' },
+          { key: 'calls',  label: '호출순' },
+          { key: 'tokens', label: '토큰순' },
+          { key: 'recent', label: '최근사용순' },
+        ].map(o => (
+          <button key={o.key} onClick={() => setSortBy(o.key)} style={{
+            padding: '5px 12px',
+            background: sortBy === o.key ? `${ACCENT}12` : 'transparent',
+            border: `1px solid ${sortBy === o.key ? `${ACCENT}40` : BORDER}`,
+            borderRadius: 8,
+            color: sortBy === o.key ? ACCENT : TEXTM,
+            fontSize: 12, fontWeight: sortBy === o.key ? 700 : 500,
+            cursor: 'pointer', fontFamily: FF, transition: 'all 0.15s',
+          }}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      {error && <ErrBox>{error}</ErrBox>}
+      {loading ? <Loading /> : users.length === 0 ? <Empty>가입된 회원이 없습니다.</Empty> : (
+        <div style={{
+          background: SURFACE, border: `1px solid ${BORDER}`,
+          borderRadius: 16, overflow: 'hidden',
+          boxShadow: '0 1px 8px rgba(192,38,211,0.05)',
+        }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1.5fr 80px 80px 110px 110px 100px 90px',
+            gap: 10, padding: '10px 18px',
+            fontSize: 11, color: TEXTM, fontWeight: 700, letterSpacing: 0.5,
+            borderBottom: `1px solid ${BORDER}`, background: '#FAF7FF',
+          }}>
+            <span>이메일</span>
+            <span style={{ textAlign: 'right' }}>호출</span>
+            <span style={{ textAlign: 'right' }}>Claude/Gem</span>
+            <span style={{ textAlign: 'right' }}>입력 토큰</span>
+            <span style={{ textAlign: 'right' }}>출력 토큰</span>
+            <span style={{ textAlign: 'right' }}>비용 (USD)</span>
+            <span style={{ textAlign: 'right' }}>최근 사용</span>
+          </div>
+          {sorted.map((u, i) => {
+            const x = u.usage || {}
+            const used = (x.calls || 0) > 0
+            return (
+              <div key={u.id} style={{
+                display: 'grid',
+                gridTemplateColumns: '1.5fr 80px 80px 110px 110px 100px 90px',
+                gap: 10, alignItems: 'center',
+                padding: '12px 18px',
+                borderBottom: i < sorted.length - 1 ? `1px solid ${BORDER}` : 'none',
+                opacity: used ? 1 : 0.5,
+                transition: 'background 0.1s',
+              }}
+                onMouseOver={e => e.currentTarget.style.background = '#FAF7FF'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ fontSize: 13, color: TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {u.email}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: used ? ACCENT : TEXTM, textAlign: 'right' }}>
+                  {fmtNum(x.calls)}
+                </span>
+                <span style={{ fontSize: 11, color: TEXTM, textAlign: 'right' }}>
+                  {x.claude_calls || 0}/{x.gemini_calls || 0}
+                </span>
+                <span style={{ fontSize: 12, color: TEXTS, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtNum(x.input_tokens)}
+                </span>
+                <span style={{ fontSize: 12, color: TEXTS, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtNum(x.output_tokens)}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: used ? '#059669' : TEXTM, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtCost(x.cost_usd)}
+                </span>
+                <span style={{ fontSize: 11, color: TEXTM, textAlign: 'right' }}>
+                  {x.last_used_at ? fmtDateTime(x.last_used_at) : '—'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12, fontSize: 11, color: TEXTM, lineHeight: 1.6 }}>
+        ※ Claude Sonnet 4.6: 입력 $3 / 출력 $15 per 1M · Gemini 2.0 Flash: 입력 $0.10 / 출력 $0.40 per 1M<br />
+        ※ 원화 환산은 1 USD = 1,380원 기준 (참고용)
+      </div>
+    </>
+  )
+}
+
 /* ─── 공용 ─── */
 function StatusBadge({ used, children }) {
   return (
@@ -362,4 +522,16 @@ function ErrBox({ children }) {
 function fmtDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('ko-KR', { year: '2-digit', month: 'short', day: 'numeric' })
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMin = Math.round((now - d) / 60000)
+  if (diffMin < 1) return '방금'
+  if (diffMin < 60) return `${diffMin}분 전`
+  const diffH = Math.round(diffMin / 60)
+  if (diffH < 24) return `${diffH}시간 전`
+  return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
 }

@@ -1,7 +1,9 @@
+import { getUserFromAuth, logUsage } from './_lib/usage.js'
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -15,9 +17,11 @@ export default async function handler(req, res) {
     });
   }
 
+  const model = "gemini-2.0-flash";
+
   try {
     const upstream = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -29,6 +33,22 @@ export default async function handler(req, res) {
       }
     );
     const data = await upstream.json();
+
+    if (upstream.ok && data?.usageMetadata) {
+      const user = await getUserFromAuth(req);
+      if (user) {
+        await logUsage({
+          userId: user.id,
+          provider: 'gemini',
+          model,
+          inputTokens: data.usageMetadata.promptTokenCount || 0,
+          outputTokens: data.usageMetadata.candidatesTokenCount || 0,
+          webSearch: false,
+          source: 'server',
+        });
+      }
+    }
+
     return res.status(upstream.status).json(data);
   } catch (err) {
     return res.status(500).json({ error: err.message });
